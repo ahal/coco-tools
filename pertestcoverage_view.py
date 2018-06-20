@@ -1,9 +1,6 @@
 import os
-import json
-import copy
-import urllib
 import argparse
-from utils.cocoload import get_per_test_scored_file, get_per_test_file
+from utils.cocoload import get_per_test_scored_file, get_per_test_file, pattern_find
 
 
 def parse_view_args():
@@ -35,21 +32,12 @@ def parse_view_args():
 		"--scoredfile", action="store_true", default=False,
 		help='Set this flag if a file with the percent-change score is being looked at.'
 	)
-	return parser.parse_args()
-
-
-def pattern_find(srcf_to_find, sources):
-	if sources is None:
-		return True
-	
-	for srcf in sources:
-		if srcf in srcf_to_find:
-			return True
+	return parser
 
 
 def main():
 	# Finds tests and shows the coverage for each of it's files.
-	args = parse_view_args()
+	args = parse_view_args().parse_args()
 
 	DATA_DIR = args.PER_TEST_DIR
 	test_files = args.tests
@@ -57,8 +45,6 @@ def main():
 	scored_file = args.scoredfile
 	sources = args.sources
 	ignore_uniques = args.getuniques
-
-	tests_found = {tf: False for tf in test_files}
 
 	for root, _, files in os.walk(DATA_DIR):
 		for file in files:
@@ -80,9 +66,8 @@ def main():
 
 			test_name = fmtd_test_dict['test']
 			suite_name = fmtd_test_dict['suite']
-			if test_name not in tests_found:
+			if not pattern_find(test_name, args.tests):
 				continue
-			tests_found[test_name] = True
 
 			print("Test-name: " + test_name)
 			print("Suite: " + suite_name)
@@ -95,11 +80,6 @@ def main():
 			)
 			print("\n")
 
-	if not all([tests_found[test_name] for test_name in tests_found]):
-		print(
-			"Couldn't find the tests: \n" + 
-			"\n".join([tests_found[test_name] for test_name in tests_found if not tests_found[test_name]])
-		)
 
 if __name__ == "__main__":
 	main()

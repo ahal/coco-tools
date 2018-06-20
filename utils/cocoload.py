@@ -6,6 +6,16 @@ import urllib
 RETRY = {"times": 3, "sleep": 5}
 
 
+def pattern_find(srcf_to_find, sources):
+	if sources is None:
+		return True
+	
+	for srcf in sources:
+		if srcf in srcf_to_find:
+			return True
+	return False
+
+
 def save_json(data, path, filename):
 	with open(os.path.join(path, filename), 'w') as f:
 		json.dump(data, f, indent=4)
@@ -25,9 +35,54 @@ def chrome_mapping_rewrite(srcfiles, chrome_map_path, chrome_map_name):
 	return new_srcfiles
 
 
+def get_jsonpaths_from_dir(jsons_dir, file_matchers=None):
+	json_paths = []
+	for root, _, files in os.walk(jsons_dir):
+		for file in files:
+			if '.json' not in file:
+				continue
+			if pattern_find(file, file_matchers):
+				json_paths.append((root, file))
+	return json_paths
+
+
+def get_all_jsons(args=None):
+	# These arguments come from a parser which is or uses the
+	# pertestcoverage_view.py parser.
+	if args is None:
+		print("No arguments given.")
+		return None
+
+	# For opening the JSONs, taken from pertestcoverage_view.py's parser
+	DATA_DIR = args.PER_TEST_DIR
+	test_files = args.tests
+	score_range = args.scores
+	scored_file = args.scoredfile
+	ignore_uniques = args.getuniques
+
+	jsonpaths = get_jsonpaths_from_dir(DATA_DIR)
+	json_data = []
+
+	for root, file in jsonpaths:
+		try:
+			if scored_file:
+				fmtd_test_dict = get_per_test_scored_file(
+					root, file, return_test_name=True,
+					score_range=score_range, ignore_uniques=ignore_uniques
+				)
+			else:
+				fmtd_test_dict = get_per_test_file(
+					root, file, return_test_name=True
+				)
+			json_data.append(fmtd_test_dict)
+		except KeyError as e:
+			print("Bad JSON found: " + str(os.path.join(root,file)))
+	return json_data
+
+
 def get_per_test_scored_file(path, filename, get_hits=False, 
 							 return_test_name=False, score_range=None,
-							 ignore_uniques=True
+							 ignore_uniques=True, full_path=None
 							 ):
 	with open(os.path.join(path, filename)) as f:
 		data = json.load(f)
