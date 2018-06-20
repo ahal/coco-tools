@@ -5,7 +5,13 @@ from matplotlib import pyplot as plt
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cocoload import get_all_jsons
-from cocofilter import filter_per_test_all, split_file_types, group_tests, get_total_lines_hit_in_test
+from cocofilter import (
+	filter_file_variability,
+	filter_per_test_all,
+	get_total_lines_hit_in_test,
+	group_tests,
+	split_file_types
+)
 
 
 def check_args_and_get_data(args=None):
@@ -44,11 +50,15 @@ def differences_analysis(args=None, save=True, filt_and_split_data=None):
 		print("Running test: " + test)
 		json_data = test_groups[test]
 
-		# Plot all lines hit across all files (global)
+		## Plot all lines hit across all files (global) ##
 		total_lines_per_test = []
 		for per_test_data in json_data:
+			if 'lines_hit' in per_test_data:
+				total_lines_per_test.append(per_test_data['lines_hit'])
+				continue
 			total_lines = get_total_lines_hit_in_test(per_test_data)
 			total_lines_per_test.append(total_lines)
+
 		plt.figure()
 		inds = np.arange(len(total_lines_per_test))
 		plt.plot(inds, total_lines_per_test)
@@ -64,6 +74,11 @@ def differences_analysis(args=None, save=True, filt_and_split_data=None):
 		plt.title("Total lines hit relative to mean" + str(int(mean)) + ": " + test)
 		plt.ylabel("Lines Hit")
 		plt.xlabel("Test Number")
+
+		## Plot overlay ##
+
+		# Here we need to remove all file level variability
+		json_data = filter_file_variability(json_data)
 
 		print("Close all figures to see the next test...")
 		plt.show()

@@ -2,7 +2,7 @@ import copy
 from cocoload import pattern_find
 
 
-def get_total_lines_hit_in_test(per_test_data):
+def get_total_lines_hit_in_test(per_test_data, get_files=False):
 	total_lines = 0
 	for source in per_test_data['source_files']:
 		coverage = per_test_data['source_files'][source]
@@ -51,6 +51,18 @@ def filter_per_test_all(json_data_list, test_matchers, source_matchers, line_ran
 	filtered_sources = filter_per_test_sources(filtered_tests, source_matchers)
 	filtered_lines = filter_per_test_lines(filtered_sources, line_range)
 	return filtered_lines
+
+
+def filter_file_variability(json_data_list):
+	good_sources = {}
+	for count, per_test_data in enumerate(json_data_list):
+		if count == 0:
+			good_sources = per_test_data['source_files'].keys()
+			continue
+		good_sources = good_sources & per_test_data['source_files']
+	
+	filtered_data = filter_per_test_sources(json_data_list, list(good_sources))
+	return filtered_data
 
 
 def split_file_types(json_data_list):
