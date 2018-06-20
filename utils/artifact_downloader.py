@@ -34,6 +34,12 @@ def artifact_downloader_parser():
 						help='The listt of tests to look at. e.g. mochitest-browser-chrome-e10s-2.' +
 						' If it`s empty we assume that it means nothing, if `all` is given all suites' +
 						' will be processed.')
+	parser.add_argument('--artifact-to-get', type=str, nargs=1, default='grcov',
+						help='Pattern matcher for the artifact you want to download. By default, it' +
+						' is set to `grcov` to get ccov artifacts. Use `per_test_coverage` to get data' +
+						' from test-coverage tasks.')
+	parser.add_argument('--unzip-artifact', action="store_true", default=False,
+						help='Set to False if you don`t want the artifact to be extracted.')
 	parser.add_argument('--output', type=str, nargs=1,
 						help='This is the directory where all the download, extracted, and suffixed ' +
 						'data will reside.')
@@ -82,32 +88,44 @@ def download_artifact(task_id, artifact, output_dir):
 
 
 def suite_name_from_task_name(name):
-	name = name[len('test-linux64-ccov/opt-'):]
+	name = name[len('test-linux64-ccov/debug-'):]
 	return name
 # Marco's functions end #
 
 
-def unzip_grcov(abs_zip_path, output_dir, count=0):
+def make_count_dir(a_path):
+	os.mkdir(a_path)
+	return a_path
+
+
+def unzip_file(abs_zip_path, output_dir, count=0):
 	tmp_path = ''
 	with zipfile.ZipFile(abs_zip_path, "r") as z:
 		tmp_path = os.path.join(output_dir, str(count))
+		if not os.path.exists(tmp_path):
+			make_count_dir(tmp_path)
+		z.extractall(tmp_path)
+	return tmp_path
 
-		def make_count_dir(a_path):
-			os.mkdir(a_path)
-			return a_path
-		z.extractall(tmp_path if os.path.exists(tmp_path)\
-							  else make_count_dir(tmp_path))
 
-	grcov_file_path = ''
-	new_file_path = ''
-	for dirpath, dirnames, filenames in os.walk(tmp_path):
-		for filename in filenames:
-			grcov_file_path = os.path.join(dirpath, filename)
-			new_file_path = os.path.join(output_dir, 'grcov_lcov_output_stdout' + str(count) + '.info')
+def move_file(abs_filepath, output_dir, count=0):
+	tmp_path = os.path.join(output_dir, str(count))
+	if not os.path.exists(tmp_path):
+		make_count_dir(tmp_path)
 
-	shutil.copyfile(grcov_file_path, new_file_path)
+	shutil.copyfile(abs_filepath, tmp_path)
+	return tmp_path
 
-def artifact_downloader(task_group_id, output_dir=os.getcwd(), test_suites=[], download_failures=False):
+
+def artifact_downloader(
+	task_group_id,
+	output_dir=os.getcwd(),
+	test_suites=[],
+	download_failures=False,
+	artifact_to_get='grcov',
+	unzip_artifact=True
+	):
+
 	head_rev = ''
 	all_tasks = False
 	if 'all' in test_suites:
@@ -159,7 +177,7 @@ def artifact_downloader(task_group_id, output_dir=os.getcwd(), test_suites=[], d
 			head_rev = task['task']['payload']['env']['GECKO_HEAD_REV']
 			grcov_dir = os.path.join(output_dir, test_name)
 			downloads_dir = os.path.join(os.path.join(grcov_dir, 'downloads'))
-			data_dir = os.path.join(os.path.join(grcov_dir, 'grcov_data'))
+			data_dir = os.path.join(os.path.join(grcov_dir, (artifact_to_get.replace(".", "")) + '_data'))
 
 			if test_name not in task_counters:
 				os.mkdir(grcov_dir)
@@ -182,11 +200,13 @@ def artifact_downloader(task_group_id, output_dir=os.getcwd(), test_suites=[], d
 				continue
 
 			for artifact in artifacts:
-				if 'grcov' in artifact['name']:
+				if artifact_to_get in artifact['name']:
 					filen = download_artifact(task_id, artifact, downloads_dir)
-					unzip_grcov(filen, data_dir, task_counters[test_name])
+					if artifact_to_get == 'grcov' or unzip_artifact:
+						unzip_file(filen, data_dir, task_counters[test_name])
+					else:
+						move_file(filen, data_dir, task_counters[test_name])
 					break
-	print('done')
 	# Return the directory where all the tasks were downloaded to
 	# and split into folders.
 	return output_dir, head_rev
@@ -197,9 +217,14 @@ def main():
 
 	task_group_id = args.task_group_id[0]
 	test_suites = args.test_suites_list
+	artifact_to_get = args.artifact_to_get[0]
+	unzip_artifact = args.unzip_artifact
 	output_dir = args.output[0] if args.output is not None else os.getcwd()
 
-	task_dir, head_rev = artifact_downloader(task_group_id, output_dir=output_dir, test_suites=test_suites)
+	task_dir, head_rev = artifact_downloader(
+		task_group_id, output_dir=output_dir, test_suites=test_suites,
+		artifact_to_get=artifact_to_get, unzip_artifact=unzip_artifact
+	)
 
 	return task_dir
 

@@ -18,7 +18,11 @@ def parse_view_args():
 		help='Tests to look at.'
 	)
 	parser.add_argument(
-		"-s", '--scores', nargs='+', type=float,
+		"-s", "--sources", nargs='+', default=None,
+		help='Source files to find, these are pattern matchers.'
+	)
+	parser.add_argument(
+		"--scores", nargs='+', type=float,
 		help='[low, high] (inclusive): For looking at files with a score. ' +
 			 'Ignored when --scoredfile is not used.'
 	)
@@ -34,6 +38,15 @@ def parse_view_args():
 	return parser.parse_args()
 
 
+def pattern_find(srcf_to_find, sources):
+	if sources is None:
+		return True
+	
+	for srcf in sources:
+		if srcf in srcf_to_find:
+			return True
+
+
 def main():
 	# Finds tests and shows the coverage for each of it's files.
 	args = parse_view_args()
@@ -42,22 +55,28 @@ def main():
 	test_files = args.tests
 	score_range = args.scores
 	scored_file = args.scoredfile
+	sources = args.sources
 	ignore_uniques = args.getuniques
 
 	tests_found = {tf: False for tf in test_files}
 
 	for root, _, files in os.walk(DATA_DIR):
 		for file in files:
+			if '.json' not in file:
+				continue
+
 			if scored_file:
 				fmtd_test_dict = get_per_test_scored_file(
-					DATA_DIR, file, return_test_name=True,
+					root, file, return_test_name=True,
 					score_range=score_range, ignore_uniques=ignore_uniques
 				)
 			else:
 				fmtd_test_dict = get_per_test_file(
-					DATA_DIR, file, return_test_name=True
+					root, file, return_test_name=True
 				)
-			print("From file: " + file)
+
+			print("--With root: " + root)
+			print("--From file: " + file)
 
 			test_name = fmtd_test_dict['test']
 			suite_name = fmtd_test_dict['suite']
@@ -67,7 +86,13 @@ def main():
 
 			print("Test-name: " + test_name)
 			print("Suite: " + suite_name)
-			print("Unique coverage: \n" + "\n\n".join([str(sf) + ": " + str(fmtd_test_dict['source_files'][sf]) for sf in fmtd_test_dict['source_files'] if 'nsAppRunner' in sf]))
+			print(
+				"Unique coverage: \n" + "\n\n".join(
+					[str(sf) + ": " + str(fmtd_test_dict['source_files'][sf])\
+										  for sf in fmtd_test_dict['source_files'] \
+										  if pattern_find(sf, sources)]
+				)
+			)
 			print("\n")
 
 	if not all([tests_found[test_name] for test_name in tests_found]):
