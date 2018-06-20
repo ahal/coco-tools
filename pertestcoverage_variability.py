@@ -34,6 +34,11 @@ def parse_variability_args():
 			 '  C/C++:  (cpp, h, c, cc, hh, tcc)\n' +
 			 '  JS:     (js, jsm)'
 	)
+	parser.add_argument(
+		"--line-range", nargs=2, type=int, default=None,
+		help='[low, high]: Tests will only be kept if they have a total lines hit ' +
+			 'that is between these values.'
+	)
 	return parser
 
 
