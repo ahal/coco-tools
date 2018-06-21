@@ -37,7 +37,7 @@ def check_args_and_get_data(args=None):
 	return filtered_json_data
 
 
-def get_and_plot_differences(json_data, test='', args=None):
+def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=None):
 	if args is None:
 		return None
 	variability_threshold = args.variability_threshold
@@ -47,33 +47,33 @@ def get_and_plot_differences(json_data, test='', args=None):
 	json_data = filter_file_variability(json_data)
 
 	## Plot all lines hit across all files (global) ##
+	if plot_total_lines:
+		# Get global hit counts and plot them
+		total_lines_per_test = []
+		for per_test_data in json_data:
+			# This might have been calculated in filter_per_test_lines
+			if 'lines_hit' in per_test_data:
+				total_lines_per_test.append(per_test_data['lines_hit'])
+				continue
+			total_lines = get_total_lines_hit_in_test(per_test_data)
+			total_lines_per_test.append(total_lines)
 
-	# Get global hit counts and plot them
-	total_lines_per_test = []
-	for per_test_data in json_data:
-		# This might have been calculated in filter_per_test_lines
-		if 'lines_hit' in per_test_data:
-			total_lines_per_test.append(per_test_data['lines_hit'])
-			continue
-		total_lines = get_total_lines_hit_in_test(per_test_data)
-		total_lines_per_test.append(total_lines)
+		inds = np.arange(len(total_lines_per_test))
 
-	inds = np.arange(len(total_lines_per_test))
+		plt.figure()
+		plt.plot(inds, total_lines_per_test)
+		plt.title("Total lines hit over time for: " + test)
+		plt.ylabel("Lines Hit")
+		plt.xlabel("Test Number")
 
-	plt.figure()
-	plt.plot(inds, total_lines_per_test)
-	plt.title("Total lines hit over time for: " + test)
-	plt.ylabel("Lines Hit")
-	plt.xlabel("Test Number")
-
-	# Plot it recalculated as a change from mean
-	mean = np.mean(total_lines_per_test)
-	recalced = [(hits-mean) for hits in total_lines_per_test]
-	plt.figure()
-	plt.plot(inds, recalced)
-	plt.title("Total lines hit relative to the mean " + str(int(mean)) + ": " + test)
-	plt.ylabel("Lines Hit")
-	plt.xlabel("Test Number")
+		# Plot it recalculated as a change from mean
+		mean = np.mean(total_lines_per_test)
+		recalced = [(hits-mean) for hits in total_lines_per_test]
+		plt.figure()
+		plt.plot(inds, recalced)
+		plt.title("Total lines hit relative to the mean " + str(int(mean)) + ": " + test)
+		plt.ylabel("Lines Hit")
+		plt.xlabel("Test Number")
 
 	## Plot overlay ##
 
@@ -234,7 +234,7 @@ def aggregation_graph_analysis(args=None, save=True, filt_and_split_data=None):
 			aggregated_data.append(copy.deepcopy(total_aggregate))
 
 		print("### Ploting aggregation report")
-		differences = get_and_plot_differences(aggregated_data, test=test, args=args)
+		differences = get_and_plot_differences(aggregated_data, test=test, plot_total_lines=False, args=args)
 
 		if save:
 			new_file = 'line_level_differences_' + str(int(time.time())) + ".json"
