@@ -13,7 +13,8 @@ py pertestcoverage_view.py ~\per-test-coverage-reports\DAbkkBV-RjadEQAtDgjTHA --
 
 This tool will search through the given directory for jsons and find the ones that have the given tests that are listed and then display their unique coverage. Use -s to list files you are interested in.
 
-## Usage example for pertestcoverage_variability --differences analysis:
+
+## Usage example for pertestcoverage_variability analysis:
 ```
 py pertestcoverage_variability.py  ~\per-test-coverage-reports\EKzK4lJ3Rt2BH3zDGVdXjA\0\test-coverage-e10s -t test_bug --differences --line-range 0 10000000 --variability-threshold 50 100 -o ~\data_holder
 ```

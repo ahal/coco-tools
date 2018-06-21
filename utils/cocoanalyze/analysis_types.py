@@ -46,6 +46,8 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 	print("Removing file variability.")
 	json_data = filter_file_variability(json_data)
 
+	inds = np.arange(len(json_data))
+
 	## Plot all lines hit across all files (global) ##
 	if plot_total_lines:
 		# Get global hit counts and plot them
@@ -57,8 +59,6 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 				continue
 			total_lines = get_total_lines_hit_in_test(per_test_data)
 			total_lines_per_test.append(total_lines)
-
-		inds = np.arange(len(total_lines_per_test))
 
 		plt.figure()
 		plt.plot(inds, total_lines_per_test)
@@ -100,20 +100,21 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 		if keep_source:
 			filt_sources_to_plot[source] = hits
 
-	# Get mean hits
-	mean_plot = np.mean(
-		[
-			filt_sources_to_plot[source] - np.mean(filt_sources_to_plot[source])
-		 	for source in filt_sources_to_plot
-		], 0
-	)
-
 	plt.figure()
+	all_lines = []
 	for source in filt_sources_to_plot:
 		hits = filt_sources_to_plot[source]
 		hits = hits - np.mean(hits)
+		if hits[0] < 0:
+			# Move lines to at or above 0 horizontal
+			hits = hits - hits[0]
 		plt.plot(inds, hits, color='grey')
+		all_lines.append(hits)
+	# Get mean hits
+	mean_plot = np.mean(all_lines, 0)
 	plt.plot(inds, mean_plot, color='darkblue')
+	plt.ylabel("Lines changed")
+	plt.xlabel("Test number ")
 	plt.title("Change in file coverage overtime for all files found")
 
 	if variability_threshold[0] <= 20 and len(filt_sources_to_plot) > 20:
