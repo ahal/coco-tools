@@ -13,7 +13,7 @@ def get_total_lines_hit_in_test(per_test_data, get_files=False):
 def filter_per_test_sources(json_data_list, source_matchers):
 	filtered_data_list = []
 	for per_test_data in json_data_list:
-		new_sourcefiles = copy.deepcopy(per_test_data)
+		new_sourcefiles = {}
 		for source in per_test_data['source_files']:
 			if pattern_find(source, source_matchers):
 				new_sourcefiles[source] = per_test_data['source_files'][source]
@@ -59,10 +59,11 @@ def filter_file_variability(json_data_list):
 		if count == 0:
 			good_sources = per_test_data['source_files'].keys()
 			continue
-		good_sources = good_sources & per_test_data['source_files']
-	
-	filtered_data = filter_per_test_sources(json_data_list, list(good_sources))
-	return filtered_data
+		good_sources = good_sources & per_test_data['source_files'].keys()
+	if len(good_sources) == len(json_data_list[0]['source_files']):
+		return json_data_list
+	else:
+		return filter_per_test_sources(json_data_list, list(good_sources))
 
 
 def split_file_types(json_data_list):

@@ -9,7 +9,7 @@ RETRY = {"times": 3, "sleep": 5}
 def pattern_find(srcf_to_find, sources):
 	if sources is None:
 		return True
-	
+
 	for srcf in sources:
 		if srcf in srcf_to_find:
 			return True
@@ -74,6 +74,7 @@ def get_all_jsons(args=None):
 				fmtd_test_dict = get_per_test_file(
 					root, file, return_test_name=True
 				)
+			fmtd_test_dict['location'] = os.path.join(root, file)
 			json_data.append(fmtd_test_dict)
 		except KeyError as e:
 			print("Bad JSON found: " + str(os.path.join(root,file)))

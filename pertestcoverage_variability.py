@@ -6,7 +6,6 @@ from utils.cocoanalyze.analysis_types import differences_analysis, aggregation_g
 
 def parse_variability_args():
 	parser = parse_view_args()
-	#parser = argparse.ArgumentParser(parents=[view_parser])
 	parser.add_argument(
 		"-o", "--output-dir", type=str,
 		help='Output directory for the data created (mainly jsons).'
@@ -14,7 +13,7 @@ def parse_variability_args():
 	parser.add_argument(
 		"--differences", action="store_true", default=False,
 		help='Set this to perform a simple differences analysis and return the ' +
-			 'results in jsons in the output directory.'
+			 'results in jsons in the output directory. Makes some plots as well.'
 	)
 	parser.add_argument(
 		"--aggregation-graph", action="store_true", default=False,
@@ -26,7 +25,8 @@ def parse_variability_args():
 	parser.add_argument(
 		"--line-level", default=False,
 		help='Set this to look at line level differences. If this is not set, ' +
-			 'we look at file-level differences.'
+			 'we look at file-level differences. Some functions are not affected ' +
+			 'by this flag.'
 	)
 	parser.add_argument(
 		"--split-types", action="store_true", default=False,
@@ -38,6 +38,17 @@ def parse_variability_args():
 		"--line-range", nargs=2, type=int, default=None,
 		help='[low, high]: Tests will only be kept if they have a total lines hit ' +
 			 'that is between these values.'
+	)
+	parser.add_argument(
+		"--variability-threshold", nargs=2, type=float, default=[0.0, 50000.0],
+		help='Used to change how many files are visible in the overlay based on ' +
+			 'how many lines have changed. The default shows all files with 0 to ' +
+			 ' 50000 lines changed. \n' +
+			 'IMPORTANT: This also changes how many source files are saved.'
+	)
+	parser.add_argument(
+		"--save-all", action="store_true", default=False,
+		help='If set, all differences will be stored, not just differences over time.'
 	)
 	return parser
 

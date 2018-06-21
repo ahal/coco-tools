@@ -158,6 +158,7 @@ def artifact_downloader(
 	# Used to keep track of how many grcov files 
 	# we are downloading per test.
 	task_counters = {}
+	taskid_to_file_map = {}
 
 	# For each task in this group
 	for task in tasks:
@@ -206,7 +207,13 @@ def artifact_downloader(
 						unzip_file(filen, data_dir, task_counters[test_name])
 					else:
 						move_file(filen, data_dir, task_counters[test_name])
-					break
+					taskid_to_file_map[task_id] = os.path.join(
+						data_dir, str(task_counters[test_name])
+					)
+
+	with open(os.path.join(output_dir, 'taskid_to_file_map.json'), 'w') as f:
+		json.dump(taskid_to_file_map, f, indent=4)
+
 	# Return the directory where all the tasks were downloaded to
 	# and split into folders.
 	return output_dir, head_rev

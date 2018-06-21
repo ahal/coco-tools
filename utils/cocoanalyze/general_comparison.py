@@ -3,13 +3,6 @@ def get_sets_common_and_different(files1, files2, forward_diff_name='list1-list2
 								 backward_diff_name='list2-list1', merge_diffs=False):
 	different = {}
 	common = list(files1 & files2)
-	print(files1)
-	print("\n\n\n\n")
-	print(files2)
-
-	print("\n\n\n\n")
-	print("COMMON:")
-	print(common)
 
 	if not merge_diffs:
 		different[forward_diff_name] = list(files1-files2)
@@ -17,9 +10,6 @@ def get_sets_common_and_different(files1, files2, forward_diff_name='list1-list2
 	else:
 		different = list(files1 ^ files2)
 
-	print("\n\n\n\n")
-	print("DIFFERENT:")
-	print(different)
 	return (common, different)
 
 
@@ -39,7 +29,6 @@ def compare_coverage_files(file1, file2, level='file', file1_name='file1', file2
 		forward_diff_name=forward_diff_name,
 		backward_diff_name=backward_diff_name
 	)
-	print(common_files)
 	#import time
 	#time.sleep(60)
 
@@ -110,6 +99,39 @@ def get_common_and_different(fmt_coverage1, fmt_coverage2, cov1_fname='jsdcov', 
 			different_between[curr_name] = different
 
 	return common_to_both, different_between
+
+
+def format_per_test_list(json_data_list):
+	new_list = []
+	for per_test_data in json_data_list:
+		new_list.append(per_test_data['source_files'])
+	return new_list
+
+
+def aggregate_reports(dest_report, src_report):
+	# Restructure for easy access
+	new_files = {}
+	final_report = dest_report
+	dest_files = dest_report['source_files']
+	src_files = src_report['source_files']
+
+	for file in src_files:
+		cov_report = src_files[file]
+		if file not in dest_files:
+			new_files[file] = cov_report
+			continue
+
+		src_coverage = cov_report
+		dst_coverage = dest_files[file]
+		new_files[file] = list(set(src_coverage) | set(dst_coverage))
+
+	for file in dest_files:
+		if file in new_files:
+			continue
+		new_files[file] = dest_files[file]
+
+	final_report['source_files'] = new_files
+	return final_report
 
 
 if __name__=="__main__":
