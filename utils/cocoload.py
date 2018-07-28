@@ -4,6 +4,11 @@ import copy
 import urllib
 
 RETRY = {"times": 3, "sleep": 5}
+LEVEL_MAP = {
+	'file': 1,
+	'line': 2,
+	'hits': 3
+}
 
 
 def pattern_find(srcf_to_find, sources):
@@ -290,6 +295,65 @@ def format_sfnames(differences):
 		new_sf = new_sf.replace('\n', '')
 		new_differences[new_sf] = differences[sf]
 	return new_differences
+
+
+def format_to_level(json_data_list, level='line', curr_level=None):
+	if not curr_level:
+		prev_level = curr_level
+		for per_test_data in json_data_list:
+			curr_level = level_check(per_test_data)
+			if not prev_level:
+				prev_level = curr_level
+			elif prev_level != curr_level:
+				print(
+					"Error, datasets are not at the same level, previous level was `" + str(prev_level) +
+					"` and current level is `" + str(curr_level) + "`"
+				)
+				return json_data_list
+
+	if LEVEL_MAP[curr_level] < LEVEL_MAP[level]:
+		print(
+			"Warning, requested level `" + str(level) + "` is above the "
+			"current level, that is `" + str(curr_level) + "`"
+		)
+		return json_data_list
+	elif LEVEL_MAP[curr_level] == LEVEL_MAP[level]:
+		return json_data_list
+
+	return lower_data_level(json_data_list, level=level)
+
+
+def level_check(json_data):
+	if type(json_data) == dict:
+		if len(json_data) > 0:
+			for entry in json_data:
+				first_el = json_data[entry]
+				break
+			if type(first_el) == list and len(first_el) > 0:
+				if type(first_el[0]) == tuple:
+					return 'hits'
+		return 'line'
+	return 'file'
+
+
+def lower_data_level(json_data_list, level):
+	# Use format_to_level for a "guarantee" that
+	# there will be no errors when moving levels.
+	# It assumes the curr_level is known by user.
+	new_data_list = []
+	for per_test_data in json_data_list:
+		new_test_data = []
+		if level == 'file':
+			new_test_data = list(per_test_data.keys())
+		elif level == 'line':
+			new_test_data = {}
+			for sf in per_test_data:
+				new_test_data[sf] = [line for line, _ in per_test_data[sf]]
+		else:
+			# Default to the same type
+			new_test_data = per_test_data
+		new_data_list.append(new_test_data)
+	return new_data_list
 
 
 if __name__=="__main__":

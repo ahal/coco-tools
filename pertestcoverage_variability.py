@@ -1,7 +1,11 @@
 import argparse
 
 from pertestcoverage_view import parse_view_args
-from utils.cocoanalyze.analysis_types import differences_analysis, aggregation_graph_analysis
+from utils.cocoanalyze.analysis_types import (
+	aggregation_graph_analysis,
+	differences_analysis,
+	filter_freqs_analysis
+)
 
 
 def parse_variability_args():
@@ -21,12 +25,21 @@ def parse_variability_args():
 			 'or variability, over time. Little to no variability yield graphs ' +
 			 'with lines that are horizontal, or very close to it, with small ' +
 			 'increases over time.'
+	),
+	parser.add_argument(
+		"--filter-freqs", action="store_true", default=False,
+		help='Set this to perform an FFT frequency filter on the data to clean it. ' +
+			 'The values for the frequencies are set with `--frequency-filter` and' +
+			 'can have any float value, but the maximum viewable frequency is 50Hz. ' +
+			 'That field should be set to [0, 0.05] to remove the variability.'
 	)
 	parser.add_argument(
 		"--line-level", default=False,
 		help='Set this to look at line level differences. If this is not set, ' +
 			 'we look at file-level differences. Some functions are not affected ' +
-			 'by this flag.'
+			 'by this flag. Line-level is defined as the number of lines hit in a ' +
+			 'source file, and file-level is the number of files that are hit in ' +
+			 'a test (or artifact).'
 	)
 	parser.add_argument(
 		"--split-types", action="store_true", default=False,
@@ -47,8 +60,14 @@ def parse_variability_args():
 			 'IMPORTANT: This also changes how many source files are saved.'
 	)
 	parser.add_argument(
+		"--frequency-filter", nargs=2, type=float, default=[0.0, 50000.0],
+		help='Filters out changes in line hit counts that fall outside of the ' +
+			 'two values given here. By default, everything is kept.'
+	)
+	parser.add_argument(
 		"--save-all", action="store_true", default=False,
-		help='If set, all differences will be stored, not just differences over time.'
+		help='If set, all differences will be stored, not just differences over time. ' +
+			 'Saves additional information in other modes also.'
 	)
 	return parser
 
@@ -63,6 +82,9 @@ def main():
 	elif args.aggregation_graph:
 		print("Running aggregation graph analysis.")
 		aggregation_graph_analysis(args=args)
+	elif args.filter_freqs:
+		print("Running FFT frequency filter.")
+		filter_freqs_analysis(args=args)
 	else:
 		print(
 			"No analysis type was specified. Use --differences or something " +

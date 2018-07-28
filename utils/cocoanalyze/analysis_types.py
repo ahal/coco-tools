@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from cocoload import get_all_jsons, save_json
+from cocoload import get_all_jsons, save_json, format_to_level
 from cocoanalyze.general_comparison import (
 	aggregate_reports,
 	format_per_test_list,
@@ -15,6 +15,7 @@ from cocoanalyze.general_comparison import (
 
 from cocofilter import (
 	filter_file_variability,
+	filter_freqs,
 	filter_per_test_sources,
 	filter_per_test_all,
 	get_total_lines_hit_in_test,
@@ -37,7 +38,7 @@ def check_args_and_get_data(args=None):
 	return filtered_json_data
 
 
-def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=None):
+def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=None, show_stability=False):
 	if args is None:
 		return None
 	variability_threshold = args.variability_threshold
@@ -83,7 +84,7 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 	for per_test_data in json_data:
 		for source in per_test_data['source_files']:
 			coverage = per_test_data['source_files'][source]
-			source_files_to_plot[source].append(len(coverage))
+			source_files_to_plot[source].append(len(coverage)) # Add the number of lines hit
 
 	# Variability filter the lines
 	print("Running variability filter...")
@@ -106,8 +107,9 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 		hits = filt_sources_to_plot[source]
 		hits = hits - np.mean(hits)
 		if hits[0] < 0:
-			# Move lines to at or above 0 horizontal
-			hits = hits - hits[0]
+			# Flip the graph so differences
+			# decrease
+			hits = hits * -1
 		plt.plot(inds, hits, color='grey')
 		all_lines.append(hits)
 	# Get mean hits
@@ -115,7 +117,16 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 	plt.plot(inds, mean_plot, color='darkblue')
 	plt.ylabel("Lines changed")
 	plt.xlabel("Test number ")
-	plt.title("Change in file coverage overtime for all files found")
+	title = "Change in file coverage overtime for all files found "
+	if show_stability:
+		max_linechange = max(mean_plot)
+		min_linechange = min(mean_plot)
+		stability_score = round(
+			100 * (1/((max_linechange - min_linechange) + 1)),
+			2
+		)
+		title += "Stability=" + str(stability_score) + "%"
+	plt.title(title)
 
 	if variability_threshold[0] <= 20 and len(filt_sources_to_plot) > 20:
 		print("WARNING: This may take a while. Consider increasing " + 
@@ -206,9 +217,9 @@ def aggregation_graph_analysis(args=None, save=True, filt_and_split_data=None):
 	OUTPUT_DIR = args.output_dir if args.output_dir else os.getcwd()
 	variability_threshold = args.variability_threshold
 	save_all = args.save_all
-	level = 'file'
-	if args.line_level:
-		level = 'line'
+	freq_range = args.frequency_filter
+
+	filt_and_split_data = format_to_level(filt_and_split_data, level='line')
 
 	test_groups = group_tests(filt_and_split_data)
 	for test in test_groups:
@@ -235,7 +246,7 @@ def aggregation_graph_analysis(args=None, save=True, filt_and_split_data=None):
 			aggregated_data.append(copy.deepcopy(total_aggregate))
 
 		print("### Ploting aggregation report")
-		differences = get_and_plot_differences(aggregated_data, test=test, plot_total_lines=False, args=args)
+		differences = get_and_plot_differences(aggregated_data, test=test, plot_total_lines=False, args=args, show_stability=True)
 
 		if save:
 			new_file = 'line_level_differences_' + str(int(time.time())) + ".json"
@@ -244,6 +255,61 @@ def aggregation_graph_analysis(args=None, save=True, filt_and_split_data=None):
 				str(variability_threshold[0]) + " lines changed to: " + new_file
 			)
 			save_json(differences, OUTPUT_DIR, new_file)
+		plt.show()
+
+	return filt_and_split_data
+
+
+def filter_freqs_analysis(args=None, save=True, filt_and_split_data=None):
+	# Plot the same thing as 'differences', but with
+	# aggregated data.
+	if not filt_and_split_data:
+		print("Loading...")
+		filt_and_split_data = check_args_and_get_data(args=args)
+		if not filt_and_split_data:
+			return None
+		print("Done loading.")
+
+	OUTPUT_DIR = args.output_dir if args.output_dir else os.getcwd()
+	save_all = args.save_all
+	freq_range = args.frequency_filter
+
+	filt_and_split_data = format_to_level(filt_and_split_data, level='line')
+
+	test_groups = group_tests(filt_and_split_data)
+	for test in test_groups:
+		# For each test, perform the plotting mentioned above.
+		print("Running test: " + test)
+		json_data = test_groups[test]
+
+		print("Removing file variability.")
+		json_data = filter_file_variability(json_data)
+
+		test_name = test.split('/')[-1]
+
+		print("Filtering frequencies...")
+		new_data = filter_freqs(json_data, freq_range)
+
+		print("Plotting filtered data")
+		f1 = plt.figure()
+		mean_data = []
+		total_trials = len(new_data['source_files'])
+		for sf in new_data['source_files']:
+			plt.plot(new_data['source_files'][sf], label=sf, color='silver')
+			if len(mean_data) == 0:
+				mean_data = new_data['source_files'][sf]
+			else:
+				mean_data += new_data['source_files'][sf]
+		plt.plot(np.asarray(mean_data)/total_trials, label='mean', color='blue')
+		plt.title("Lines hit over time, frequency filtered")
+
+		if save_all:
+			output_name = os.path.join(OUTPUT_DIR, 'with_freqs_filter_' + str(int(time.time())) + '.png')
+			print("Saving figure to: " + output_name)
+			ymin, ymax = plt.ylim()
+			plt.ylim(0, 4100)
+			plt.savefig(output_name)
+			plt.ylim(ymin, ymax)
 
 		plt.show()
 
