@@ -51,15 +51,19 @@ def main():
 			if '.json' not in file:
 				continue
 
-			if scored_file:
-				fmtd_test_dict = get_per_test_scored_file(
-					root, file, return_test_name=True,
-					score_range=score_range, ignore_uniques=ignore_uniques
-				)
-			else:
-				fmtd_test_dict = get_per_test_file(
-					root, file, return_test_name=True
-				)
+			try:
+				if scored_file:
+					fmtd_test_dict = get_per_test_scored_file(
+						root, file, return_test_name=True,
+						score_range=score_range, ignore_uniques=ignore_uniques
+					)
+				else:
+					fmtd_test_dict = get_per_test_file(
+						root, file, return_test_name=True
+					)
+			except KeyError as e:
+				print("Bad JSON found: " + str(os.path.join(root,file)))
+				continue
 
 			print("--With root: " + root)
 			print("--From file: " + file)

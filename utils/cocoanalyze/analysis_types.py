@@ -3,6 +3,7 @@ import sys
 import time
 import copy
 import numpy as np
+import json
 from matplotlib import pyplot as plt
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,6 +19,7 @@ from cocofilter import (
 	filter_freqs,
 	filter_per_test_sources,
 	filter_per_test_all,
+	filter_ttest,
 	get_total_lines_hit_in_test,
 	group_tests,
 	split_file_types
@@ -46,7 +48,6 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 	# Here we need to remove all file level variability
 	print("Removing file variability.")
 	json_data = filter_file_variability(json_data)
-
 	inds = np.arange(len(json_data))
 
 	## Plot all lines hit across all files (global) ##
@@ -312,6 +313,50 @@ def filter_freqs_analysis(args=None, save=True, filt_and_split_data=None):
 			plt.ylim(ymin, ymax)
 
 		plt.show()
+
+	return filt_and_split_data
+
+
+def filter_ttest_analysis(args=None, save=True, filt_and_split_data=None):
+	# Plot the same thing as 'differences', but with
+	# aggregated data.
+	if not filt_and_split_data:
+		print("Loading...")
+		filt_and_split_data = check_args_and_get_data(args=args)
+		if not filt_and_split_data:
+			return None
+		print("Done loading.")
+
+	OUTPUT_DIR = args.output_dir if args.output_dir else os.getcwd()
+	save_all = args.save_all
+	freq_range = args.frequency_filter
+
+	filt_and_split_data = format_to_level(filt_and_split_data, level='line')
+
+	test_groups = group_tests(filt_and_split_data)
+	for test in test_groups:
+		# For each test, perform the plotting mentioned above.
+		print("Running test: " + test)
+		json_data = test_groups[test]
+
+		print("Removing file variability.")
+		json_data = filter_file_variability(json_data)
+
+		test_name = test.split('/')[-1]
+
+		print("Searching for significant changes...")
+		new_data = filter_ttest(json_data, freq_range)
+
+		print("\n\nSignificant Changes In: ")
+		for sf in new_data:
+			if new_data[sf]:
+				print(sf)
+
+		if save_all:
+			output_name = os.path.join(OUTPUT_DIR, 'with_freqs_filter_' + str(int(time.time())) + '.json')
+			print("Saving data to: " + output_name)
+			with open(output_name, "w") as f:
+				json.dump(new_data, f)
 
 	return filt_and_split_data
 

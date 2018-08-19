@@ -4,7 +4,8 @@ from pertestcoverage_view import parse_view_args
 from utils.cocoanalyze.analysis_types import (
 	aggregation_graph_analysis,
 	differences_analysis,
-	filter_freqs_analysis
+	filter_freqs_analysis,
+	filter_ttest_analysis
 )
 
 
@@ -32,6 +33,11 @@ def parse_variability_args():
 			 'The values for the frequencies are set with `--frequency-filter` and' +
 			 'can have any float value, but the maximum viewable frequency is 50Hz. ' +
 			 'That field should be set to [0, 0.05] to remove the variability.'
+	)
+	parser.add_argument(
+		"--ttest", nargs=2, type=float, default=None,
+		help='[low, high]: Source files whose t-test values fall __outside__ this ' +
+			 'range will be declared significant.'
 	)
 	parser.add_argument(
 		"--line-level", default=False,
@@ -85,6 +91,9 @@ def main():
 	elif args.filter_freqs:
 		print("Running FFT frequency filter.")
 		filter_freqs_analysis(args=args)
+	elif args.ttest:
+		print("Running T-test Significance Check.")
+		filter_ttest_analysis(args=args)
 	else:
 		print(
 			"No analysis type was specified. Use --differences or something " +
