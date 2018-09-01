@@ -20,6 +20,11 @@ def pattern_find(srcf_to_find, sources):
 			return True
 	return False
 
+def open_json(path, filename):
+	with open(os.path.join(path, filename), 'r') as f:
+		data = json.load(f)
+	return data
+
 
 def save_json(data, path, filename):
 	with open(os.path.join(path, filename), 'w') as f:
