@@ -238,7 +238,7 @@ def filter_per_test_all(json_data_list, test_matchers, source_matchers, line_ran
 	return filtered_lines
 
 
-def filter_file_variability(json_data_list):
+def filter_file_variability(json_data_list, remove=False):
 	good_sources = {}
 	variable_sources = {}
 	for count, per_test_data in enumerate(json_data_list):
@@ -258,7 +258,18 @@ def filter_file_variability(json_data_list):
 	if len(variable_sources) == 0:
 		return json_data_list
 	else:
-		return filter_per_test_sources(json_data_list, list(good_sources))
+		if remove:
+			return filter_per_test_sources(json_data_list, list(good_sources))
+		else:
+			# Add empty entries for missing files instead of removing them.
+			new_json_data_list = []
+			for per_test_data in json_data_list:
+				for source in variable_sources:
+					if source in per_test_data['source_files']:
+						continue
+					per_test_data['source_files'][source] = []
+				new_json_data_list.append(per_test_data)
+			return new_json_data_list
 
 
 def split_file_types(json_data_list):
