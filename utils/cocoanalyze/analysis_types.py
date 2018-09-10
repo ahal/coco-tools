@@ -44,6 +44,7 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 	if args is None:
 		return None
 	variability_threshold = args.variability_threshold
+	correlation_threshold = args.correlation_threshold
 
 	# Here we need to remove all file level variability
 	print("Removing file variability.")
@@ -80,12 +81,20 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 	## Plot overlay ##
 
 	# Get hits per test per file
-	source_files = json_data[0]['source_files'].keys()
-	source_files_to_plot = {sf: [] for sf in source_files}
-	for per_test_data in json_data:
+	source_files_to_plot = {}
+	for i, per_test_data in enumerate(json_data):
 		for source in per_test_data['source_files']:
 			coverage = per_test_data['source_files'][source]
-			source_files_to_plot[source].append(len(coverage)) # Add the number of lines hit
+			if source not in source_files_to_plot:
+				source_files_to_plot[source] = []
+				for j in range(i):
+					source_files_to_plot[source].append(0)
+			source_files_to_plot[source].append(len(coverage))
+
+		for source in source_files_to_plot:
+			if len(source_files_to_plot[source]) != i+1:
+				source_files_to_plot[source].append(0)
+
 
 	# Variability filter the lines
 	print("Running variability filter...")
@@ -133,6 +142,82 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 		print("WARNING: This may take a while. Consider increasing " + 
 			  "the variability-threshold.")
 
+	# Normalize
+	normed_data = {}
+	for s in filt_sources_to_plot:
+		coverage = filt_sources_to_plot[s]
+		max_cov = max(coverage)
+		min_cov = min(coverage)
+
+		def inrange_constant(val):
+			while val/10 > 1:
+				val = val/10
+			return val/10
+
+		new_coverage = [
+			(c-min_cov)/(max_cov-min_cov) if max_cov - min_cov != 0 else inrange_constant(c)
+			for c in coverage
+		]
+		normed_data[s] = new_coverage
+
+	# Compare
+	data_to_save = {}
+	for count, s1 in enumerate(normed_data):
+		curr_cov = normed_data[s1]
+		if max(curr_cov) - min(curr_cov) == 0:
+			continue
+
+		found_it = False
+		for grouping in data_to_save:
+			if s1 in data_to_save[grouping]['sources'].keys():
+				found_it = True
+		if found_it:
+			continue
+
+		similar_sources = []
+		sim_sources_names = []
+		sim_sources_names.append(s1)
+		similar_sources.append(curr_cov)
+		for s2 in normed_data:
+			if max(normed_data[s2]) - min(normed_data[s1]) == 0:
+				continue
+
+			if s2 == s1:
+				continue
+			differences = sum(abs(np.asarray(normed_data[s1]) - np.asarray(normed_data[s2])))
+			if differences < correlation_threshold:
+				similar_sources.append(normed_data[s2])
+				sim_sources_names.append(s2)
+		if len(similar_sources) <= 1:
+			continue
+
+		plt.figure()
+		t = [
+			plt.plot(s, color='silver')
+			for s in similar_sources
+		]
+		print(np.mean(np.asarray(similar_sources), axis=0))
+		plt.plot(list(np.mean(np.asarray(similar_sources), axis=0)), color='blue')
+
+		print("Sources:\n" + str([s for s in sim_sources_names]))
+
+		#plt.show()
+
+		def get_covered_of_src(name):
+			all_coverage = []
+			for per_test_data in json_data:
+				for src in per_test_data['source_files']:
+					if src == name:
+						all_coverage.append(per_test_data['source_files'][src])
+			return all_coverage
+
+		grouping = 'similar-group-' + str(count+1)
+		data_to_save[grouping] = {}
+		data_to_save[grouping]['sources'] = {}
+		for i in range(len(sim_sources_names)):
+			data_to_save[grouping]['sources'][sim_sources_names[i]] = [str(l) for l in get_covered_of_src(sim_sources_names[i])]
+		data_to_save[grouping]['source_being_compared'] = s1
+
 	##  Save the data ##
 
 	# Get the differences to save
@@ -160,7 +245,7 @@ def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=Non
 	for count, per_test_data in enumerate(filt_json_data):
 		differences[str(count) + '-location'] = per_test_data['location']
 
-	return differences
+	return differences, data_to_save
 
 
 def differences_analysis(args=None, save=True, filt_and_split_data=None):
@@ -189,7 +274,7 @@ def differences_analysis(args=None, save=True, filt_and_split_data=None):
 		print("Running test: " + test)
 		json_data = test_groups[test]
 
-		differences = get_and_plot_differences(json_data, args=args)
+		differences, data_to_save = get_and_plot_differences(json_data, args=args)
 
 		if save:
 			new_file = 'line_level_differences_' + str(int(time.time())) + ".json"
@@ -199,8 +284,18 @@ def differences_analysis(args=None, save=True, filt_and_split_data=None):
 			)
 			save_json(differences, OUTPUT_DIR, new_file)
 
+			for grouping in data_to_save:
+				new_file = 'similarity_' + grouping + '_' + str(int(time.time())) + ".json"
+				print(
+					"Saving similar groups of files with changes thresholded to at least " +
+					str(variability_threshold[0]) + " lines changed to: " + new_file
+				)
+				save_json(data_to_save[grouping], OUTPUT_DIR, new_file)
+
 		print("Close all figures to see the next test...")
 		plt.show()
+
+
 
 	return filt_and_split_data, differences
 

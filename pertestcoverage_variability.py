@@ -66,6 +66,13 @@ def parse_variability_args():
 			 'IMPORTANT: This also changes how many source files are saved.'
 	)
 	parser.add_argument(
+		"--correlation-threshold", nargs=1, type=float, default=100,
+		help='Used to change how many files are visible in the overlay based on ' +
+			 'how many lines have changed. The default shows all files with 0 to ' +
+			 ' 50000 lines changed. \n' +
+			 'IMPORTANT: This also changes how many source files are saved.'
+	)
+	parser.add_argument(
 		"--frequency-filter", nargs=2, type=float, default=[0.0, 50000.0],
 		help='Filters out changes in line hit counts that fall outside of the ' +
 			 'two values given here. By default, everything is kept.'
