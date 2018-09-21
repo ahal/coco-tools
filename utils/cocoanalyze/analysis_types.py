@@ -26,10 +26,16 @@ from cocofilter import (
 )
 
 
+def wrap_args(args)
+	if type(args) == dict:
+		args = wrap(args)
+	return args
+
+
 def check_args_and_get_data(args=None):
-	# Args must be obtained from pertestcoverage_view.py parser.
 	if args is None:
 		return None
+	args = wrap_args(args)
 
 	json_data = get_all_jsons(args)
 	filtered_json_data = filter_per_test_all(json_data, args.tests, args.sources, args.line_range)
@@ -43,6 +49,8 @@ def check_args_and_get_data(args=None):
 def get_and_plot_differences(json_data, test='', plot_total_lines=True, args=None, show_stability=False):
 	if args is None:
 		return None
+	args = wrap_args(args)
+
 	variability_threshold = args.variability_threshold
 	correlation_threshold = args.correlation_threshold
 
@@ -253,6 +261,7 @@ def differences_analysis(args=None, save=True, filt_and_split_data=None):
 	# the ratio (lines hit - mean of lines hit) for a more accurate view,
 	# and an overlay of the number of lines hit in each file (in gray) with
 	# a mean of those lines shown over top (in blue) for 3 figures.
+	args = wrap_args(args)
 
 	if not filt_and_split_data:
 		print("Loading...")
@@ -303,6 +312,8 @@ def differences_analysis(args=None, save=True, filt_and_split_data=None):
 def aggregation_graph_analysis(args=None, save=True, filt_and_split_data=None):
 	# Plot the same thing as 'differences', but with
 	# aggregated data.
+	args = wrap_args(args)
+
 	if not filt_and_split_data:
 		print("Loading...")
 		filt_and_split_data = check_args_and_get_data(args=args)
@@ -359,6 +370,8 @@ def aggregation_graph_analysis(args=None, save=True, filt_and_split_data=None):
 def filter_freqs_analysis(args=None, save=True, filt_and_split_data=None):
 	# Plot the same thing as 'differences', but with
 	# aggregated data.
+	args = wrap_args(args)
+
 	if not filt_and_split_data:
 		print("Loading...")
 		filt_and_split_data = check_args_and_get_data(args=args)
@@ -415,6 +428,8 @@ def filter_freqs_analysis(args=None, save=True, filt_and_split_data=None):
 def filter_ttest_analysis(args=None, save=True, filt_and_split_data=None):
 	# Plot the same thing as 'differences', but with
 	# aggregated data.
+	args = wrap_args(args)
+
 	if not filt_and_split_data:
 		print("Loading...")
 		filt_and_split_data = check_args_and_get_data(args=args)

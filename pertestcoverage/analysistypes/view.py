@@ -1,6 +1,8 @@
 import os
 import argparse
 import time
+
+from ..cli import AnalysisParser
 from utils.cocoload import (
 	get_per_test_scored_file,
 	get_per_test_file,
@@ -12,7 +14,7 @@ from utils.cocoload import (
 def parse_view_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument(
-		"PER_TEST_DIR", type=str,
+		"per_test_dir", type=str,
 		help="Directory containing per-test-coverage-reports. Must contain only " +
 			 "JSON reports (or many folders of them)."
 	)
@@ -45,17 +47,45 @@ def parse_view_args():
 	return parser
 
 
-def main():
-	# Finds tests and shows the coverage for each of it's files.
-	args = parse_view_args().parse_args()
+def view_file(
+		root=None,
+		file=None,
+		full_path=None,
+		score_range=None,
+		ignore_uniques=True
+	):
+	if not (root and file and full_path):
+		raise Exception("No file paths supplied.")
+	if not full_path and root or file and not (file and root):
+		raise Exception("root and file must both me supplied if full_path is not.")
 
-	DATA_DIR = args.PER_TEST_DIR
-	test_files = args.tests
-	score_range = args.scores
-	scored_file = args.scoredfile
-	sources = args.sources
-	ignore_uniques = args.getuniques
-	save_view_json = args.save_view_json
+	if full_path:
+		root, file = os.path.split(full_path)
+
+	if scored_file:
+		fmtd_test_dict = get_per_test_scored_file(
+			root, file, return_test_name=True,
+			score_range=score_range, ignore_uniques=ignore_uniques
+		)
+	else:
+		fmtd_test_dict = get_per_test_file(
+			root, file, return_test_name=True
+		)
+
+	return fmtd_test_dict
+
+
+def view(
+		per_test_dir,
+		test_files,
+		score_range=None,
+		scored_file=False,
+		sources=None,
+		ignore_uniques=True,
+		save_view_json=''
+	):
+
+	# Finds tests and shows the coverage for each of it's files.
 
 	for root, _, files in os.walk(DATA_DIR):
 		for file in files:
@@ -63,18 +93,17 @@ def main():
 				continue
 
 			try:
-				if scored_file:
-					fmtd_test_dict = get_per_test_scored_file(
-						root, file, return_test_name=True,
-						score_range=score_range, ignore_uniques=ignore_uniques
-					)
-				else:
-					fmtd_test_dict = get_per_test_file(
-						root, file, return_test_name=True
-					)
+				fmtd_test_dict = view_file(
+					root=root,
+					file=file,
+					score_range=score_range,
+					scored_file=scored_file
+					ignore_uniques=ignore_uniques
+				)
 			except KeyError as e:
 				print("Bad JSON found: " + str(os.path.join(root,file)))
 				continue
+
 
 			print("--With root: " + root)
 			print("--From file: " + file)
@@ -110,5 +139,23 @@ def main():
 				)
 
 
+def run(args):
+	parser = AnalysisParser('config')
+	args = parser.parse_analysis_args(args)
+	view(
+		args.config['pertestdir'],
+		**args.config
+	)
+
+
 if __name__ == "__main__":
-	main()
+	args = parse_view_args().parse_args()
+	view(
+		args.per_test_dir,
+		test_files = args.tests,
+		score_range = args.scores,
+		scored_file = args.scoredfile,
+		sources = args.sources,
+		ignore_uniques = args.getuniques,
+		save_view_json = args.save_view_json
+	)

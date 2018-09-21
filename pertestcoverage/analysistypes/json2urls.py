@@ -13,7 +13,7 @@ URL_PREFIX = 'https://hg.mozilla.org/'
 def parse_json2url_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument(
-		"PLACES_TO_SEARCH", nargs='+', type=str,
+		"json_locations_list", nargs='+', type=str,
 		help="Directory containing json's created by pertestcoverage_variability. Must contain only " +
 			 "JSON reports (or many folders of them)."
 	)
@@ -40,34 +40,71 @@ def parse_json2url_args():
 	return parser
 
 
-def file_to_annotate(fname, line, branch, revision):
+def file_to_hgloc(fname, line, branch, revision):
 	return \
 		URL_PREFIX + \
 		branch + "/" + \
-		'annotate'  + "/" + \
+		'file'  + "/" + \
 		revision + "/" + \
 		fname.lstrip('/') + \
 		"#l" + str(line)
 
 
-def main():
-	# Finds tests and shows the coverage for each of it's files.
-	args = parse_json2url_args().parse_args()
+def json2url(
+		json_data,
+		revision,
+		branch='mozilla-central',
+		sources=None
+	):
+	new_entry = {}
 
-	places_to_search = args.PLACES_TO_SEARCH
-	revision = args.revision
-	branch = args.branch
-	sources = args.sources
-	differences = args.differences
-	pertestcoverage_view = args.pertestcoverage_view
+	if differences:
+		for entry in json_data:
+			if 'location' in entry:
+				continue
+
+			new_fchunk = {}
+			for fname, diffs in json_data[entry].items():
+				new_fchunk[fname] = {}
+				for diff, lines in diffs.items():
+					if sources and not pattern_find(fname, sources):
+						continue
+					new_fchunk[fname][diff] = [
+						file_to_hgloc(fname, line, branch, revision)
+						for line in lines
+					]
+			new_entry[entry] = new_fchunk
+
+	elif pertestcoverage_view:
+		for fname, lines in json_data.items():
+			if sources and not pattern_find(fname, sources):
+				continue
+
+			new_entry[fname] = [
+				file_to_hgloc(fname, line, branch, revision)
+				for line in lines
+			]
+
+	return new_entry
+
+
+def json2urls(
+		json_locations_list,
+		revision,
+		branch='mozilla-central',
+		sources=None,
+		differences=False,
+		pertestcoverage_view=False
+	):
+	# Finds jsons and converts their coverage
+	# contents into hg urls.
 	find_files = []
 
 	if not differences and not pertestcoverage_view:
 		print("Must supply the type of JSON to convert, i.e. --differences")
 		return
 
-	print("Converting differences JSONs.")
-	for data_dir in places_to_search:
+	for data_dir in json_locations_list:
 		is_file = os.path.isfile(data_dir)
 		if is_file:
 			root, file = os.path.split(data_dir)
@@ -85,34 +122,17 @@ def main():
 				try:
 					json_data = open_json(root, file)
 
-					new_entry = {}
-					if differences:
-						for entry in json_data:
-							if 'location' in entry:
-								continue
-							new_fchunk = {}
-							for fname, diffs in json_data[entry].items():
-								new_fchunk[fname] = {}
-								for diff, lines in diffs.items():
-									if sources and not pattern_find(fname, sources):
-										continue
-									new_fchunk[fname][diff] = [
-										file_to_annotate(fname, line, branch, revision)
-										for line in lines
-									]
-							new_entry[entry] = new_fchunk
-					elif pertestcoverage_view:
+					if pertestcoverage_view:
 						if not file.startswith('view') or \
 						   '_urls' in file and file.startswith('view'):
 							continue
 
-						for fname, lines in json_data.items():
-							if sources and not pattern_find(fname, sources):
-								continue
-							new_entry[fname] = [
-								file_to_annotate(fname, line, branch, revision)
-								for line in lines
-							]
+					new_entry = json2url(
+						json_data,
+						revision,
+						branch=branch,
+						sources=sources
+					):
 
 					save_json(new_entry, root, new_fname)
 				except Exception as e:
@@ -122,6 +142,27 @@ def main():
 				print("To: " + new_fname)
 				print("\n")
 
+	print("Finished conversion.")
+
+
+
+def run(args):
+	parser = AnalysisParser('config', 'branch', 'rev')
+	args = parser.parse_analysis_args(args)
+	json2urls(
+		args.config['json_locations_list'],
+		args.rev,
+		**args.config
+	)
+
 
 if __name__ == "__main__":
-	main()
+	args = parse_json2url_args().parse_args()
+	pertestcoverage_json2urls(
+		args.json_locations_list,
+		args.revision,
+		branch = args.branch,
+		sources = args.sources,
+		differences = args.differences,
+		pertestcoverage_view = args.pertestcoverage_view
+	)
