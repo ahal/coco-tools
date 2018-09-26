@@ -1,0 +1,9 @@
+numpatches: 100
+startrev: "48cc597db296"
+outputdir: "C:/tmp/"
+analysisbranch: "mozilla-central"
+
+mochitest_tc_task_rev: "dcb3a3ba9065"
+mochitest_tc_task_branch: "try"
+xpcshell_tc_task_rev: "6369d1c6526b"
+xpcshell_tc_task_branch: "try" 

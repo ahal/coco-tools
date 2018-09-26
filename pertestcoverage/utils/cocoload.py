@@ -1,7 +1,8 @@
 import os
 import json
 import copy
-import urllib
+import urllib.request
+import requests
 
 RETRY = {"times": 3, "sleep": 5}
 LEVEL_MAP = {
@@ -9,6 +10,8 @@ LEVEL_MAP = {
 	'line': 2,
 	'hits': 3
 }
+
+ACTIVE_DATA_URL = "http://54.149.21.8/query/"
 
 
 def pattern_find(srcf_to_find, sources):
@@ -228,8 +231,27 @@ def get_ad_jsdcov_file(taskID):
 	)
 
 
+def get_http_json(url):
+	data = None
+	with urllib.request.urlopen(url) as urllib_url:
+		data = json.loads(urllib_url.read().decode())
+	return data
+
+
+def query_activedata2(query):
+	"""Runs the provided query against the ActiveData endpoint.
+	:param dict query: yaml-formatted query to be run.
+	:returns str: json-formatted string.
+	"""
+	response = requests.post(ACTIVE_DATA_URL,
+							 data=query,
+							 stream=True)
+	response.raise_for_status()
+	return response.json()
+
+
 def query_activedata(query_json):
-	active_data_url = 'http://activedata.allizom.org/query'
+	active_data_url = "http://54.149.21.8/query" #'http://activedata.allizom.org/query'
 
 	req = urllib.request.Request(active_data_url)
 	req.add_header('Content-Type', 'application/json')
@@ -238,13 +260,12 @@ def query_activedata(query_json):
 	jsondataasbytes = jsondata.encode('utf-8')
 	req.add_header('Content-Length', len(jsondataasbytes))
 
-	print("Querying Active-data for task ID " + str(query_json['where']['eq']['task.id']) +
-		  ": \n" + str(query_json))
+	print("Querying Active-data...")
 	response = urllib.request.urlopen(req, jsondataasbytes)
 	print("Status:" + str(response.getcode()))
 
 	data = json.loads(response.read().decode('utf8').replace("'", '"'))['data']
-	return [(i, data['coverage'][count]) for count, i in enumerate(data['source.file.name'])]
+	return data
 
 
 def format_generic_activedata_coverage_response(response):

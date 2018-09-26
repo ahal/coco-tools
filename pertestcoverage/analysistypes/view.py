@@ -97,7 +97,7 @@ def view(
 					root=root,
 					file=file,
 					score_range=score_range,
-					scored_file=scored_file
+					scored_file=scored_file,
 					ignore_uniques=ignore_uniques
 				)
 			except KeyError as e:

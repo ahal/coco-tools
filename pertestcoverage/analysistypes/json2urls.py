@@ -1,6 +1,8 @@
 import os
 import argparse
-from utils.cocoload import (
+
+from ..cli import AnalysisParser
+from ..utils.cocoload import (
 	get_per_test_scored_file,
 	get_per_test_file,
 	pattern_find,
@@ -132,7 +134,7 @@ def json2urls(
 						revision,
 						branch=branch,
 						sources=sources
-					):
+					)
 
 					save_json(new_entry, root, new_fname)
 				except Exception as e:
@@ -147,6 +149,17 @@ def json2urls(
 
 
 def run(args):
+	"""
+		Expects `config` to at least contain:
+
+			json_locations_list: C:/Users/gm/Documents/per-test-coverage-data/
+			sources:
+				- test
+				- .cpp
+			differences: True
+
+		`differences` can be replaced with `pertestcoverage_view` if that's the style of json being given.
+	"""
 	parser = AnalysisParser('config', 'branch', 'rev')
 	args = parser.parse_analysis_args(args)
 	json2urls(
