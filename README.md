@@ -1,3 +1,22 @@
+# Current usage of tool
+
+First clone and run the following:
+```
+cd coco-tools
+py setup.py install
+```
+
+Then, you can use the various analysis types listed with '-l' or '--list' (extremely similar to [active-data-recipes](https://github.com/mozilla/active-data-recipes)):
+```
+ptc -l 		# This will list available analysis types
+ptc patch_analysis -c C:\tmp\config.yml # This will run a patch analysis
+```
+
+All ptc analysis types take a YAML config to make it simpler to configure the algorithms (rather than passing a bunch of random flags through the CLI)
+
+
+# OLD USAGE BELOW
+
 ## Usage example for getting per-test-coverage data:
 ```
 py utils\artifact_downloader.py --task-group-id DAbkkBV-RjadEQAtDgjTHA --test-suites-list test-coverage-e10s --artifact-to-get per-test-coverage --unzip-artifact --output ~\per-test-coverage-reports
