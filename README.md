@@ -12,7 +12,7 @@ ptc -l 		# This will list available analysis types
 ptc patch_analysis -c C:\tmp\config.yml # This will run a patch analysis
 ```
 
-All ptc analysis types take a YAML config to make it simpler to configure the algorithms (rather than passing a bunch of random flags through the CLI)
+All `ptc` analysis types take a YAML config to make it simpler to configure the algorithms (rather than passing a bunch of random flags through the CLI)
 
 
 # OLD USAGE BELOW

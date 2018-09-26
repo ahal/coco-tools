@@ -2,7 +2,7 @@ import os
 import json
 import copy
 import urllib.request
-import requests
+import logging
 
 RETRY = {"times": 3, "sleep": 5}
 LEVEL_MAP = {
@@ -12,6 +12,8 @@ LEVEL_MAP = {
 }
 
 ACTIVE_DATA_URL = "http://54.149.21.8/query/"
+
+log = logging.getLogger('pertestcoverage')
 
 
 def pattern_find(srcf_to_find, sources):
@@ -238,19 +240,7 @@ def get_http_json(url):
 	return data
 
 
-def query_activedata2(query):
-	"""Runs the provided query against the ActiveData endpoint.
-	:param dict query: yaml-formatted query to be run.
-	:returns str: json-formatted string.
-	"""
-	response = requests.post(ACTIVE_DATA_URL,
-							 data=query,
-							 stream=True)
-	response.raise_for_status()
-	return response.json()
-
-
-def query_activedata(query_json):
+def query_activedata(query_json, debug=False):
 	active_data_url = "http://54.149.21.8/query" #'http://activedata.allizom.org/query'
 
 	req = urllib.request.Request(active_data_url)
@@ -260,9 +250,9 @@ def query_activedata(query_json):
 	jsondataasbytes = jsondata.encode('utf-8')
 	req.add_header('Content-Length', len(jsondataasbytes))
 
-	print("Querying Active-data...")
+	log.debug("Querying Active-data with: " + str(query_json))
 	response = urllib.request.urlopen(req, jsondataasbytes)
-	print("Status:" + str(response.getcode()))
+	log.debug("Status:" + str(response.getcode()))
 
 	data = json.loads(response.read().decode('utf8').replace("'", '"'))['data']
 	return data
