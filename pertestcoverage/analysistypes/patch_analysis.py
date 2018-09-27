@@ -69,6 +69,9 @@ def run(args=None, config=None):
 			xpcshell_tc_task_branch: "try" 
 
 			analyze_files_with_missing_tests: True
+			check_against_seta: True
+			platform_prefix: "test-"
+			seta_suites: ["mochitest", "xpcshell"]
 	"""
 	if args:
 		parser = AnalysisParser('config')
@@ -80,8 +83,12 @@ def run(args=None, config=None):
 	numpatches = config['numpatches']
 	startrevision = config['startrev']
 	analysisbranch = config['analysisbranch']
+	platform_prefix = config['platform_prefix']
+	seta_suites = config['seta_suites']
+
 	outputdir = config['outputdir']
 	analyze_files_with_missing_tests = config['analyze_files_with_missing_tests']
+	check_against_seta = config['check_against_seta']
 
 	# JSON to use for test file queries
 	mochitest_query_json = {
@@ -141,8 +148,8 @@ def run(args=None, config=None):
 	histogram2_datalist = []
 
 	# For each patch
-	for changeset in changesets:
-		log.info("On changeset: " + changeset)
+	for count, changeset in enumerate(changesets):
+		log.info("On changeset " + "(" + str(count) + "): " + changeset)
 
 		# Get patch
 		files_url = HG_URL + analysisbranch + "/json-info/" + changeset
@@ -221,19 +228,20 @@ def run(args=None, config=None):
 		"files": [file for file in tests_per_file if not tests_per_file[file]]
 	}
 
-	log.info("\nSaving results to output directory: " + outputdir)
-	save_json(tests_for_changeset, outputdir, str(int(time.time())) + '_tests_scheduled_per_changeset.json')
+	if outputdir:
+		log.info("\nSaving results to output directory: " + outputdir)
+		save_json(tests_for_changeset, outputdir, str(int(time.time())) + '_tests_scheduled_per_changeset.json')
 
-	if analyze_files_with_missing_tests:
-		save_json(tests_per_file, outputdir, str(int(time.time())) + '_tests_scheduled_per_file.json')
-		save_json(files_with_no_tests, outputdir, str(int(time.time())) + '_files_with_no_tests.json')
+		if analyze_files_with_missing_tests:
+			save_json(tests_per_file, outputdir, str(int(time.time())) + '_tests_scheduled_per_file.json')
+			save_json(files_with_no_tests, outputdir, str(int(time.time())) + '_files_with_no_tests.json')
 
 
 	## Plot the results
-
+	all_changesets = [changeset for _, changeset in histogram1_datalist]
 	f, b1 = plot_histogram(
 		data=[numtests for numtests, _ in histogram1_datalist],
-		x_labels=[changeset for _, changeset in histogram1_datalist],
+		x_labels=all_changesets,
 		title="Tests scheduled (Y) over all changesets (X)"
 	)
 
@@ -243,4 +251,88 @@ def run(args=None, config=None):
 	b2 = plt.bar(range(len(ratioed_data)), ratioed_data)
 	plt.legend((b1[0], b2[0]), ('Number of tests', '# Tests per File'))
 
+	log.info("Close figures to compare against SETA if requested.")
+
+	## Check against SETA data
+
+	if not check_against_seta:
+		return
+
+	# Get SETA data
+	seta_query = {
+		"from":"unittest",
+		"groupby":"repo.changeset.id12",
+		"limit":1000000,
+		"select":[
+			{"aggregate":"count"},
+			{"aggregate":"cardinality","value":"result.test"}
+		],
+		"where":{"and":[
+			{"in":{"repo.changeset.id12":all_changesets}},
+			{"prefix":{"run.name":platform_prefix}},
+			{"eq":{"repo.branch.name":analysisbranch}},
+			{"exists":"result.test"}
+		]}
+	}
+
+	if seta_suites:
+		seta_query["where"]["and"].append(
+			{"in":{"run.suite.name":seta_suites}}
+		)
+
+	seta_numtests_data = query_activedata(seta_query)
+	print(seta_numtests_data)
+	seta_numtests_dict = {changeset: uniquetests for changeset, totaltests, uniquetests in seta_numtests_data}
+
+	# Format SETA data (expand to all changesets)
+	seta_numtests_expanded = []
+	prev_changeset = None
+	cset_groups = {}
+	cset_group = []
+
+	for changeset in all_changesets:
+		if prev_changeset:
+			if prev_changeset != changeset and changeset in seta_numtests_dict:
+				# Found a new push, set the new push revision and save cset grouping to
+				# make histogram processing simpler.
+				cset_groups[prev_changeset] = cset_group.copy()
+				cset_group = []
+
+				prev_changeset = changeset
+		else:
+			prev_changeset = changeset
+
+		seta_numtests_expanded.append((seta_numtests_dict[prev_changeset], changeset))
+		cset_group.append(changeset)
+	cset_groups[prev_changeset] = cset_group.copy()
+	print(cset_groups)
+
+	prev_numtest = None
+	new_histogram_data = []
+	for numtests, changeset in seta_numtests_expanded:
+		# Get changeset grouping
+		total_tests = 0
+		for pushcset, grouping in cset_groups.items():
+			if changeset not in grouping:
+				continue
+			# Get total number of tests scheduled to run through per-test coverage
+			total_tests = len(set.union(*[set(tests_for_changeset[c]['tests']) for c in grouping]))
+			break
+		new_histogram_data.append((total_tests, changeset))
+
+
+	## Plot SETA results
+
+	f, b1 = plot_histogram(
+		data=[numtests for numtests, _ in seta_numtests_expanded],
+		x_labels=all_changesets,
+		title="Tests scheduled (Y) over all changesets (X)"
+	)
+
+	# Plot a second bar on top
+	b2 = plt.bar(range(len(all_changesets)), [numtests for numtests, _ in new_histogram_data])
+	plt.legend((b1[0], b2[0]), ('# of SETA tests run', '# of per-test-coverage tests run'))
+
+	log.info("Close figures to end anlysis.")
 	plt.show()
+

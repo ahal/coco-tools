@@ -1,7 +1,8 @@
 import os
 import json
 import copy
-import urllib
+
+from ..cli import AnalysisParser
 
 from ..utils.cocoload import (
 	save_json,
