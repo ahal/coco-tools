@@ -1,6 +1,8 @@
 import os
 import time
 import logging
+import numpy as np
+from matplotlib import pyplot as plt
 
 from ..cli import AnalysisParser
 
@@ -15,7 +17,44 @@ HG_URL = "https://hg.mozilla.org/"
 log = logging.getLogger('pertestcoverage')
 
 
-def run(args):
+def moving_average(data, n=3) :
+    ret = np.cumsum(data, dtype=float)
+    ret[n:] = ret[n:] - ret[:-n]
+    return ret[n - 1:] / n
+
+
+def running_mean(x, N):
+    out = np.zeros_like(x, dtype=np.float64)
+    dim_len = x.shape[0]
+    for i in range(dim_len):
+        if N%2 == 0:
+            a, b = i - (N-1)//2, i + (N-1)//2 + 2
+        else:
+            a, b = i - (N-1)//2, i + (N-1)//2 + 1
+
+        #cap indices to min and max indices
+        a = max(0, a)
+        b = min(dim_len, b)
+        out[i] = np.mean(x[a:b])
+    return out
+
+
+def plot_histogram(data, x_labels, title, figure=None, **kwargs):
+	if not figure:
+		f = plt.figure()
+	else:
+		plt.figure(f.number)
+
+	x = range(len(data))
+
+	b = plt.bar(x, data, **kwargs)
+	plt.xticks(x, x_labels, rotation='vertical')
+	plt.title(title)
+
+	return f, b
+
+
+def run(args=None, config=None):
 	"""
 		Expects a `config` with the following settings:
 
@@ -31,14 +70,18 @@ def run(args):
 
 			analyze_files_with_missing_tests: True
 	"""
-	parser = AnalysisParser('config')
-	args = parser.parse_analysis_args(args)
+	if args:
+		parser = AnalysisParser('config')
+		args = parser.parse_analysis_args(args)
+		config = args.config
+	if not config:
+		raise Exception("Missing `config` dict argument.")
 
-	numpatches = args.config['numpatches']
-	startrevision = args.config['startrev']
-	analysisbranch = args.config['analysisbranch']
-	outputdir = args.config['outputdir']
-	analyze_files_with_missing_tests = args.config['analyze_files_with_missing_tests']
+	numpatches = config['numpatches']
+	startrevision = config['startrev']
+	analysisbranch = config['analysisbranch']
+	outputdir = config['outputdir']
+	analyze_files_with_missing_tests = config['analyze_files_with_missing_tests']
 
 	# JSON to use for test file queries
 	mochitest_query_json = {
@@ -46,8 +89,8 @@ def run(args):
 		"where":{
 			"and":[
 				{"eq":{"source.file.name":None}},
-				{"eq":{"repo.changeset.id12":args.config['mochitest_tc_task_rev']}},
-				{"eq":{"repo.branch.name":args.config['mochitest_tc_task_branch']}},
+				{"eq":{"repo.changeset.id12":config['mochitest_tc_task_rev']}},
+				{"eq":{"repo.branch.name":config['mochitest_tc_task_branch']}},
 				{"gt":{"source.file.total_covered":0}}
 			]
 		},
@@ -63,8 +106,8 @@ def run(args):
 		"where":{
 			"and":[
 				{"eq":{"source.file.name":None}},
-				{"eq":{"repo.changeset.id12":args.config['xpcshell_tc_task_rev']}},
-				{"eq":{"repo.branch.name":args.config['xpcshell_tc_task_branch']}},
+				{"eq":{"repo.changeset.id12":config['xpcshell_tc_task_rev']}},
+				{"eq":{"repo.branch.name":config['xpcshell_tc_task_branch']}},
 				{"gt":{"source.file.total_covered":0}}
 			]
 		},
@@ -94,6 +137,9 @@ def run(args):
 	tests_for_changeset = {}
 	tests_per_file = {}
 
+	histogram1_datalist = []
+	histogram2_datalist = []
+
 	# For each patch
 	for changeset in changesets:
 		log.info("On changeset: " + changeset)
@@ -104,16 +150,22 @@ def run(args):
 
 		files_modified = data[changeset]['files']
 
+		if not files_modified:
+			continue
+
 		# Get tests that use this patch
 		all_tests = set()
 
-		if not analyze_files_with_missing_tests:
+		if analyze_files_with_missing_tests:
 			for file in files_modified:
 				mochitest_query_json['where']['and'][0]['eq']['source.file.name'] = file
 				xpcshell_query_json['where']['and'][0]['eq']['source.file.name'] = file
 
-				mochi_tests = query_activedata(mochitest_query_json)
-				xpc_tests = query_activedata(xpcshell_query_json)
+				try:
+					mochi_tests = query_activedata(mochitest_query_json)
+					xpc_tests = query_activedata(xpcshell_query_json)
+				except Exception as e:
+					log.info("Error running with file: " + file)
 
 				if 'test' not in mochi_tests:
 					mochi_tests['test'] = []
@@ -136,8 +188,15 @@ def run(args):
 			mochitest_query_json['where']['and'][0] = in_entry
 			xpcshell_query_json['where']['and'][0] = in_entry
 
-			mochi_tests = [testchunk[0] for testchunk in query_activedata(mochitest_query_json)]
-			xpc_tests = [testchunk[0] for testchunk in query_activedata(xpcshell_query_json)]
+			try:
+				mochi_tests = [testchunk[0] for testchunk in query_activedata(mochitest_query_json)]
+				xpc_tests = [testchunk[0] for testchunk in query_activedata(xpcshell_query_json)]
+			except Exception as e:
+				log.info("Error running query: " + str(mochitest_query_json))
+				log.info("or the query: " + str(xpcshell_query_json))
+
+				mochi_tests = []
+				xpc_tests = []
 
 			all_tests = list(set(mochi_tests) | set(xpc_tests))
 
@@ -152,14 +211,36 @@ def run(args):
 		tests_for_changeset[changeset]['numtests'] = len(all_tests)
 		tests_for_changeset[changeset]['tests'] = all_tests
 
-	# Save result (number, and all tests scheduled)
+		histogram1_datalist.append((len(all_tests), changeset))
+		histogram2_datalist.append((len(all_tests), len(files_modified), changeset))
+
+
+	## Save results (number, and all tests scheduled)
+
 	files_with_no_tests = {
-		"files": [file for file in tests_per_file if file in files_modified and not tests_per_file[file]]
+		"files": [file for file in tests_per_file if not tests_per_file[file]]
 	}
 
 	log.info("\nSaving results to output directory: " + outputdir)
 	save_json(tests_for_changeset, outputdir, str(int(time.time())) + '_tests_scheduled_per_changeset.json')
 
-	if not analyze_files_with_missing_tests:
+	if analyze_files_with_missing_tests:
 		save_json(tests_per_file, outputdir, str(int(time.time())) + '_tests_scheduled_per_file.json')
 		save_json(files_with_no_tests, outputdir, str(int(time.time())) + '_files_with_no_tests.json')
+
+
+	## Plot the results
+
+	f, b1 = plot_histogram(
+		data=[numtests for numtests, _ in histogram1_datalist],
+		x_labels=[changeset for _, changeset in histogram1_datalist],
+		title="Tests scheduled (Y) over all changesets (X)"
+	)
+
+	ratioed_data = [numtests/numfiles if numfiles > 0 else 0 for numtests, numfiles, _ in histogram2_datalist]
+
+	# Plot a second bar on top
+	b2 = plt.bar(range(len(ratioed_data)), ratioed_data)
+	plt.legend((b1[0], b2[0]), ('Number of tests', '# Tests per File'))
+
+	plt.show()

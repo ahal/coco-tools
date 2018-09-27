@@ -123,7 +123,7 @@ def run_analysis(analysis, args):
 	modname = '.analysistypes.{}'.format(analysis)
 	mod = importlib.import_module(modname, package='pertestcoverage')
 	log.debug("Result:")
-	mod.run(args)
+	mod.run(args=args)
 
 
 def cli(args=sys.argv[1:]):
