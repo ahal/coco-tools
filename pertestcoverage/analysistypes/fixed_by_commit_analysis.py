@@ -280,5 +280,6 @@ def run(args=None, config=None):
 	plt.legend((b1[0], b2[0]), ('# of failed tests', '# of per-test scheduled tests'))
 
 	log.info("Close figures to end analysis.")
+	log.info("Changesets analyzed (use these in other analysis types if possible): \n" + str(all_changesets))
 	plt.show()
 

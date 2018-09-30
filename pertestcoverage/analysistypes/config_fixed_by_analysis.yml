@@ -1,8 +1,8 @@
-numpatches: 200
-startrev: "7ac88abc3c57" #"981bcfe73738" #"d03b538b6b41" #"d2218beee052" # #"48cc597db296"
+numpatches: 100
+startrev: "981bcfe73738" #"7ac88abc3c57" #"981bcfe73738" #"d03b538b6b41" #"d2218beee052" # #"48cc597db296"
 outputdir: "C:/tmp/"
-analysisbranch: "mozilla-central"
-hg_analysisbranch: "mozilla-central" # "integration/mozilla-inbound" # This may sometimes be different from `analysisbranch`
+analysisbranch: "mozilla-inbound"
+hg_analysisbranch: "integration/mozilla-inbound" # This may sometimes be different from `analysisbranch`
 seta_suites: ["mochitest", "xpcshell"]
 platform_prefix: "test-linux64/"
 

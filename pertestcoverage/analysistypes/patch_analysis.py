@@ -9,10 +9,10 @@ from ..cli import AnalysisParser
 from ..utils.cocoload import (
 	save_json,
 	get_http_json,
-	query_activedata
+	query_activedata,
+	get_changesets,
+	HG_URL
 )
-
-HG_URL = "https://hg.mozilla.org/"
 
 log = logging.getLogger('pertestcoverage')
 
@@ -73,6 +73,10 @@ def run(args=None, config=None):
 			check_against_seta: True
 			platform_prefix: "test-"
 			seta_suites: ["mochitest", "xpcshell"]
+
+			Optional(
+				changesets: ["ah212dDJdai2", ...]
+			)
 	"""
 	if args:
 		parser = AnalysisParser('config')
@@ -87,6 +91,7 @@ def run(args=None, config=None):
 	hg_analysisbranch = config['hg_analysisbranch']
 	platform_prefix = config['platform_prefix']
 	seta_suites = config['seta_suites']
+	changesets = [] if 'changesets' not in config else config['changesets']
 
 	outputdir = config['outputdir']
 	analyze_files_with_missing_tests = config['analyze_files_with_missing_tests']
@@ -128,20 +133,8 @@ def run(args=None, config=None):
 	}
 
 	# Get all patches
-	changesets = []
-	keep_going = True
-	currrev = startrevision
-
-	while len(changesets) < numpatches:
-		changelog_url = HG_URL + hg_analysisbranch + "/json-log/" + currrev
-
-		data = get_http_json(changelog_url)
-		clog_csets_list = list(data['changesets'])
-		changesets.extend([el['node'][:12] for el in clog_csets_list[:-1]])
-
-		currrev = clog_csets_list[-1]['node'][:12]
-
-	changesets = changesets[:numpatches]
+	if not changesets:
+		changesets = get_changesets(hg_analysisbranch, startrevision, numpatches)
 
 	tests_for_changeset = {}
 	tests_per_file = {}
@@ -160,7 +153,7 @@ def run(args=None, config=None):
 		files_modified = data[changeset]['files']
 
 		if not files_modified:
-			continue
+			log.info("No files were modified.")
 
 		# Get tests that use this patch
 		all_tests = set()
@@ -342,5 +335,6 @@ def run(args=None, config=None):
 	plt.bar(range(len(all_changesets)), seta_lower_than_ptc, color='blue')
 
 	log.info("Close figures to end anlysis.")
+	log.info("Changesets analyzed (use these in other analysis types if possible): \n" + str(all_changesets))
 	plt.show()
 
