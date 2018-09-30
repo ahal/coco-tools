@@ -26,7 +26,7 @@ from cocofilter import (
 )
 
 
-def wrap_args(args)
+def wrap_args(args):
 	if type(args) == dict:
 		args = wrap(args)
 	return args

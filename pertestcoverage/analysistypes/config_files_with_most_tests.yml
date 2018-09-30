@@ -1,0 +1,12 @@
+numpatches: 100
+startrev: "d03b538b6b41" #"d2218beee052" # #"48cc597db296"
+outputdir: "C:/tmp/"
+analysisbranch: "mozilla-inbound"
+hg_analysisbranch: "integration/mozilla-inbound" # This may sometimes be different from `analysisbranch`
+minimum_tests: 1
+num_test_counts_in_worst_case: 8000
+
+mochitest_tc_task_rev: "dcb3a3ba9065"
+mochitest_tc_task_branch: "try"
+xpcshell_tc_task_rev: "6369d1c6526b"
+xpcshell_tc_task_branch: "try"

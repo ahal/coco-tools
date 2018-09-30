@@ -62,6 +62,7 @@ def run(args=None, config=None):
 			startrev: "48cc597db296"
 			outputdir: "C:/tmp/"
 			analysisbranch: "mozilla-central"
+			hg_analysisbranch: "mozilla-central"
 
 			mochitest_tc_task_rev: "dcb3a3ba9065"
 			mochitest_tc_task_branch: "try"
@@ -83,6 +84,7 @@ def run(args=None, config=None):
 	numpatches = config['numpatches']
 	startrevision = config['startrev']
 	analysisbranch = config['analysisbranch']
+	hg_analysisbranch = config['hg_analysisbranch']
 	platform_prefix = config['platform_prefix']
 	seta_suites = config['seta_suites']
 
@@ -101,7 +103,7 @@ def run(args=None, config=None):
 				{"gt":{"source.file.total_covered":0}}
 			]
 		},
-		"limit":1000,
+		"limit":100000,
 		"select":[
 			{"name":"test","value":"test.name"},
 			{"name":"coverage","value":"source.file.covered"}
@@ -118,7 +120,7 @@ def run(args=None, config=None):
 				{"gt":{"source.file.total_covered":0}}
 			]
 		},
-		"limit":1000,
+		"limit":100000,
 		"select":[
 			{"name":"test","value":"test.name"},
 			{"name":"coverage","value":"source.file.covered"}
@@ -131,7 +133,7 @@ def run(args=None, config=None):
 	currrev = startrevision
 
 	while len(changesets) < numpatches:
-		changelog_url = HG_URL + analysisbranch + "/json-log/" + currrev
+		changelog_url = HG_URL + hg_analysisbranch + "/json-log/" + currrev
 
 		data = get_http_json(changelog_url)
 		clog_csets_list = list(data['changesets'])
@@ -152,7 +154,7 @@ def run(args=None, config=None):
 		log.info("On changeset " + "(" + str(count) + "): " + changeset)
 
 		# Get patch
-		files_url = HG_URL + analysisbranch + "/json-info/" + changeset
+		files_url = HG_URL + hg_analysisbranch + "/json-info/" + changeset
 		data = get_http_json(files_url)
 
 		files_modified = data[changeset]['files']
@@ -252,6 +254,7 @@ def run(args=None, config=None):
 	plt.legend((b1[0], b2[0]), ('Number of tests', '# Tests per File'))
 
 	log.info("Close figures to compare against SETA if requested.")
+	plt.show()
 
 	## Check against SETA data
 
@@ -281,7 +284,6 @@ def run(args=None, config=None):
 		)
 
 	seta_numtests_data = query_activedata(seta_query)
-	print(seta_numtests_data)
 	seta_numtests_dict = {changeset: uniquetests for changeset, totaltests, uniquetests in seta_numtests_data}
 
 	# Format SETA data (expand to all changesets)
@@ -305,7 +307,6 @@ def run(args=None, config=None):
 		seta_numtests_expanded.append((seta_numtests_dict[prev_changeset], changeset))
 		cset_group.append(changeset)
 	cset_groups[prev_changeset] = cset_group.copy()
-	print(cset_groups)
 
 	prev_numtest = None
 	new_histogram_data = []
@@ -326,12 +327,19 @@ def run(args=None, config=None):
 	f, b1 = plot_histogram(
 		data=[numtests for numtests, _ in seta_numtests_expanded],
 		x_labels=all_changesets,
-		title="Tests scheduled (Y) over all changesets (X)"
+		title="Tests scheduled (Y) over all changesets (X)",
+		color='blue'
 	)
 
 	# Plot a second bar on top
-	b2 = plt.bar(range(len(all_changesets)), [numtests for numtests, _ in new_histogram_data])
+	b2 = plt.bar(range(len(all_changesets)), [numtests for numtests, _ in new_histogram_data], color='orange')
 	plt.legend((b1[0], b2[0]), ('# of SETA tests run', '# of per-test-coverage tests run'))
+
+	seta_lower_than_ptc = [
+		seta_numtests_expanded[ind][0] if new_histogram_data[ind][0] > seta_numtests_expanded[ind][0] else 0
+		for ind in range(len(all_changesets))
+	]
+	plt.bar(range(len(all_changesets)), seta_lower_than_ptc, color='blue')
 
 	log.info("Close figures to end anlysis.")
 	plt.show()

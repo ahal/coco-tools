@@ -12,6 +12,7 @@ LEVEL_MAP = {
 }
 
 ACTIVE_DATA_URL = "http://54.149.21.8/query/"
+HG_URL = "https://hg.mozilla.org/"
 
 log = logging.getLogger('pertestcoverage')
 
@@ -48,6 +49,23 @@ def chrome_mapping_rewrite(srcfiles, chrome_map_path, chrome_map_name):
 		new_srcfiles[new_name] = srcfiles[srcfile]
 
 	return new_srcfiles
+
+
+def get_changesets(hg_analysisbranch, startrevision, numpatches):
+	changesets = []
+	currrev = startrevision
+
+	while len(changesets) < numpatches:
+		changelog_url = HG_URL + hg_analysisbranch + "/json-log/" + currrev
+
+		data = get_http_json(changelog_url)
+		clog_csets_list = list(data['changesets'])
+		changesets.extend([el['node'][:12] for el in clog_csets_list[:-1]])
+
+		currrev = clog_csets_list[-1]['node'][:12]
+
+	changesets = changesets[:numpatches]
+	return changesets
 
 
 def get_jsonpaths_from_dir(jsons_dir, file_matchers=None):
@@ -240,8 +258,9 @@ def get_http_json(url):
 	return data
 
 
-def query_activedata(query_json, debug=False):
-	active_data_url = "http://54.149.21.8/query" #'http://activedata.allizom.org/query'
+def query_activedata(query_json, debug=False, active_data_url=None):
+	if not active_data_url:
+		active_data_url = "http://54.149.21.8/query"
 
 	req = urllib.request.Request(active_data_url)
 	req.add_header('Content-Type', 'application/json')

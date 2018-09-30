@@ -9,6 +9,9 @@ from ..utils.cocoload import (
 	chrome_mapping_rewrite,
 	query_activedata
 )
+from ..utils.cocoanalyze.general_comparison import (
+	compare_coverage_files
+)
 
 RETRY = {"times": 3, "sleep": 5}
 
@@ -17,13 +20,6 @@ def get_sets_common_and_different(files1, files2, forward_diff_name='list1-list2
 								 backward_diff_name='list2-list1', merge_diffs=False):
 	different = {}
 	common = list(files1 & files2)
-	print(files1)
-	print("\n\n\n\n")
-	print(files2)
-
-	print("\n\n\n\n")
-	print("COMMON:")
-	print(common)
 
 	if not merge_diffs:
 		different[forward_diff_name] = list(files1-files2)
@@ -31,62 +27,7 @@ def get_sets_common_and_different(files1, files2, forward_diff_name='list1-list2
 	else:
 		different = list(files1 ^ files2)
 
-	print("\n\n\n\n")
-	print("DIFFERENT:")
-	print(different)
 	return (common, different)
-
-
-def compare_coverage_files(file1, file2, level='file', file1_name='file1', file2_name='file2', merge_line_diffs=False):
-	# Compare coverage between files. Returns a tuple in the form
-	# (common, differences) where common is everything that is common
-	# between the files, and differences contains anything different
-	# between the two (we do a forward and backwards diff).
-	file1_files = {el for el in file1}
-	file2_files = {el for el in file2}
-
-	forward_diff_name = file1_name + '-' + file2_name
-	backward_diff_name = file2_name + '-' + file1_name
-
-	common_files, different_files = get_sets_common_and_different(
-		file1_files, file2_files,
-		forward_diff_name=forward_diff_name,
-		backward_diff_name=backward_diff_name
-	)
-	print(common_files)
-	#import time
-	#time.sleep(60)
-
-	# Stop here if we only want file level differences.
-	if level == 'file':
-		return (list(common_files), different_files)
-
-	line_level_common = {}
-	line_level_different = {}
-	for file in common_files:
-		file1_lines = file1[file]
-		file2_lines = file2[file]
-
-		common_lines, different_lines = get_sets_common_and_different(
-			set(file1_lines), set(file2_lines),
-			forward_diff_name=forward_diff_name,
-			backward_diff_name=backward_diff_name,
-			merge_diffs=merge_line_diffs
-		)
-
-		line_level_common[file] = common_lines
-		line_level_different[file] = different_lines
-
-	# Add file level differences in.
-	for file in different_files[forward_diff_name]:
-		line_level_different[file] = {}
-		line_level_different[file][forward_diff_name] = file1[file]
-
-	for file in different_files[backward_diff_name]:
-		line_level_different[file] = {}
-		line_level_different[file][backward_diff_name] = file2[file]
-
-	return (line_level_common, line_level_different)
 
 
 def correct_ccov_for_baseline(ccov_data, baseline_ccov_data, level='file'):
@@ -168,6 +109,9 @@ def run(args=None, config=None):
 	}
 
 	def format_results(data):
+		if 'file' not in data or 'coverage' not in data:
+			return {}
+
 		tmp = zip(data['file'], data['coverage'])
 		res = {}
 		for file, coverage in tmp:
@@ -193,8 +137,8 @@ def run(args=None, config=None):
 
 	save_json(jsdcov_data, outputdir, 'jsdcov_saveit.json')
 	save_json(jsvm_data, outputdir, 'jsvm_saveit.json')
-	save_json(jsdcov_basecorr_data, RESULTS_DIR, 'jsdcov-base.json')
-	save_json(jsvm_basecorr_data, RESULTS_DIR, 'jsvm-base.json')
+	save_json(jsdcov_basecorr_data, outputdir, 'jsdcov-base.json')
+	save_json(jsvm_basecorr_data, outputdir, 'jsvm-base.json')
 
 	common_to_both = {}
 	different_between = {}
@@ -206,11 +150,11 @@ def run(args=None, config=None):
 
 	# Save before proceeding
 	filen = 'common.json'
-	with open(os.path.join(RESULTS_DIR, filen), 'w+') as f:
+	with open(os.path.join(outputdir, filen), 'w+') as f:
 		json.dump(common_to_both, f, indent=4)
 
 	filen = 'differences.json'
 	print("Differences: ")
 	print(different_between)
-	with open(os.path.join(RESULTS_DIR, filen), 'w+') as f:
+	with open(os.path.join(outputdir, filen), 'w+') as f:
 		json.dump(different_between, f, indent=4)

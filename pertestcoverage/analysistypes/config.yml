@@ -1,15 +1,16 @@
-numpatches: 200
-startrev: "d03b538b6b41" #"48cc597db296"
+numpatches: 25
+startrev: "f84e7a76ff41" #"d03b538b6b41" #"d2218beee052" # #"48cc597db296"
 outputdir: "C:/tmp/"
 analysisbranch: "mozilla-central"
+hg_analysisbranch: "mozilla-central" #"integration/mozilla-inbound" # This may sometimes be different from `analysisbranch`
 
 mochitest_tc_task_rev: "dcb3a3ba9065"
 mochitest_tc_task_branch: "try"
 xpcshell_tc_task_rev: "6369d1c6526b"
 xpcshell_tc_task_branch: "try"
 
-analyze_files_with_missing_tests: False
+analyze_files_with_missing_tests: True
 
-check_against_seta: True
+check_against_seta: False
 seta_suites: ["mochitest", "xpcshell"]
 platform_prefix: "test-linux64/"
