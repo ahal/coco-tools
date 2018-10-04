@@ -1,14 +1,25 @@
 import os
 import argparse
 import time
+import logging
 
 from ..cli import AnalysisParser
-from utils.cocoload import (
+from ..utils.cocoload import (
+	chrome_mapping_rewrite,
+	file_in_type,
+	get_and_check_config,
 	get_per_test_scored_file,
 	get_per_test_file,
+	get_jsvm_file,
+	get_jsdcov_file,
 	pattern_find,
-	save_json
+	save_json,
+	TYPE_PERTEST,
+	TYPE_LCOV,
+	TYPE_JSDCOV
 )
+
+log = logging.getLogger('pertestcoverage')
 
 
 def parse_view_args():
@@ -50,68 +61,99 @@ def parse_view_args():
 def view_file(
 		root=None,
 		file=None,
+		filetype="pertestreport",
 		full_path=None,
 		score_range=None,
-		ignore_uniques=True
+		scored_file=False,
+		ignore_uniques=True,
+		chrome_map=None # Required for 'lcov' filetype
 	):
-	if not (root and file and full_path):
+	if not (root and file) and not full_path:
 		raise Exception("No file paths supplied.")
-	if not full_path and root or file and not (file and root):
+	if not full_path and ((root and not file) or (file and not root)):
 		raise Exception("root and file must both me supplied if full_path is not.")
 
 	if full_path:
 		root, file = os.path.split(full_path)
 
-	if scored_file:
-		fmtd_test_dict = get_per_test_scored_file(
-			root, file, return_test_name=True,
-			score_range=score_range, ignore_uniques=ignore_uniques
+	fmtd_test_dict = {}
+	if filetype == TYPE_PERTEST:
+		if scored_file:
+			fmtd_test_dict = get_per_test_scored_file(
+				root, file, return_test_name=True,
+				score_range=score_range, ignore_uniques=ignore_uniques
+			)
+		else:
+			fmtd_test_dict = get_per_test_file(
+				root, file, return_test_name=True
+			)
+	elif filetype == TYPE_LCOV:
+		chrome_map_path, chrome_map_name = os.path.split(chrome_map)
+		fmtd_test_dict = chrome_mapping_rewrite(
+			get_jsvm_file(root, file),
+			chrome_map_path, chrome_map_name
 		)
-	else:
-		fmtd_test_dict = get_per_test_file(
-			root, file, return_test_name=True
+	elif filetype == TYPE_JSDCOV:
+		chrome_map_path, chrome_map_name = os.path.split(chrome_map)
+		fmtd_test_dict = chrome_mapping_rewrite(
+			get_jsdcov_file(root, file),
+			chrome_map_path, chrome_map_name
 		)
-
 	return fmtd_test_dict
 
 
 def view(
 		per_test_dir,
 		test_files,
+		filetype,
 		score_range=None,
 		scored_file=False,
 		sources=None,
 		ignore_uniques=True,
-		save_view_json=''
+		chrome_map=None,
+		outputdir='',
 	):
 
 	# Finds tests and shows the coverage for each of it's files.
 
-	for root, _, files in os.walk(DATA_DIR):
+	for root, _, files in os.walk(per_test_dir):
 		for file in files:
-			if '.json' not in file:
+			if not file_in_type(file, filetype):
 				continue
-
 			try:
 				fmtd_test_dict = view_file(
 					root=root,
 					file=file,
+					filetype=filetype,
 					score_range=score_range,
 					scored_file=scored_file,
-					ignore_uniques=ignore_uniques
+					ignore_uniques=ignore_uniques,
+					chrome_map=chrome_map
 				)
 			except KeyError as e:
-				print("Bad JSON found: " + str(os.path.join(root,file)))
+				log.info("Bad JSON found: " + str(os.path.join(root,file)))
 				continue
 
 
-			print("--With root: " + root)
-			print("--From file: " + file)
+			log.info("--With root: " + root)
+			log.info("--From file: " + file)
 
-			test_name = fmtd_test_dict['test']
-			suite_name = fmtd_test_dict['suite']
-			if not pattern_find(test_name, args.tests):
-				continue
+			test_name = ''
+			suite_name = ''
+			if 'test' in fmtd_test_dict:
+				test_name = fmtd_test_dict['test']
+			if 'suite' in fmtd_test_dict:
+				suite_name = fmtd_test_dict['suite']
+			if 'source_files' not in fmtd_test_dict:
+				fmtd_test_dict = {
+					'source_files': fmtd_test_dict.copy()
+				}
+
+			if test_name:
+				if not pattern_find(test_name, args.tests):
+					continue
+			else:
+				log.info("No test names found in data, showing all tests.")
 
 			filt_test_dict = {
 				sf: fmtd_test_dict['source_files'][sf]
@@ -119,9 +161,9 @@ def view(
 				if pattern_find(sf, sources)
 			}
 
-			print("Test-name: " + test_name)
-			print("Suite: " + suite_name)
-			print(
+			log.info("Test-name: " + test_name)
+			log.info("Suite: " + suite_name)
+			log.info(
 				"Coverage: \n" + "\n\n".join(
 					[
 						str(sf) + ": " +
@@ -129,9 +171,9 @@ def view(
 					]
 				)
 			)
-			print("\n")
+			log.info("")
 
-			if save_view_json:
+			if outputdir:
 				save_json(
 					filt_test_dict,
 					save_view_json,
@@ -139,12 +181,16 @@ def view(
 				)
 
 
-def run(args):
-	parser = AnalysisParser('config')
-	args = parser.parse_analysis_args(args)
+def run(args=None, config=None):
+	if args:
+		parser = AnalysisParser('config')
+		args = parser.parse_analysis_args(args)
+		config = args.config
+	if not config:
+		raise Exception("Missing `config` dict argument.")
+
 	view(
-		args.config['pertestdir'],
-		**args.config
+		**config
 	)
 
 
@@ -152,10 +198,11 @@ if __name__ == "__main__":
 	args = parse_view_args().parse_args()
 	view(
 		args.per_test_dir,
-		test_files = args.tests,
-		score_range = args.scores,
-		scored_file = args.scoredfile,
-		sources = args.sources,
-		ignore_uniques = args.getuniques,
-		save_view_json = args.save_view_json
+		test_files=args.tests,
+		filetype="pertestreport",
+		score_range=args.scores,
+		scored_file=args.scoredfile,
+		sources=args.sources,
+		ignore_uniques=args.getuniques,
+		save_view_json=args.save_view_json
 	)

@@ -14,6 +14,16 @@ LEVEL_MAP = {
 ACTIVE_DATA_URL = "http://54.149.21.8/query/"
 HG_URL = "https://hg.mozilla.org/"
 
+TYPE_PERTEST = "pertestreport"
+TYPE_LCOV = "lcov"
+TYPE_JSDCOV = "jsdcov"
+
+TYPE_FILE_WHITELIST = {
+	TYPE_PERTEST: [".json"],
+	TYPE_LCOV: [".info"],
+	TYPE_JSDCOV: [".json"]
+}
+
 log = logging.getLogger('pertestcoverage')
 
 
@@ -25,6 +35,14 @@ def pattern_find(srcf_to_find, sources):
 		if srcf in srcf_to_find:
 			return True
 	return False
+
+
+def file_in_type(file, filetype):
+	for datatype in TYPE_FILE_WHITELIST[filetype]:
+		if datatype in file:
+			return True
+	return False
+
 
 def open_json(path, filename):
 	with open(os.path.join(path, filename), 'r') as f:
@@ -49,6 +67,16 @@ def chrome_mapping_rewrite(srcfiles, chrome_map_path, chrome_map_name):
 		new_srcfiles[new_name] = srcfiles[srcfile]
 
 	return new_srcfiles
+
+
+def get_and_check_config(args=None, config=None):
+	if args:
+		parser = AnalysisParser('config')
+		args = parser.parse_analysis_args(args)
+		config = args.config
+	if not config:
+		raise Exception("Missing `config` dict argument.")
+	return config
 
 
 def get_changesets(hg_analysisbranch, startrevision, numpatches):

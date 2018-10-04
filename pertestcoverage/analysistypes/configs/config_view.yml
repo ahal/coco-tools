@@ -1,0 +1,6 @@
+per_test_dir: "C:/Users/greg/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/" #"C:/Users/greg/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/jsdcov_data" #"C:/Users/greg/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/"
+test_files: ["ext_devtools_inspectedWindow_reload.js"]
+sources: [".xml"]
+filetype: "lcov" # "jsdcov", "lcov", "pertestreport"
+
+chrome_map: "C:/Users/greg/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/chrome-map.json"
