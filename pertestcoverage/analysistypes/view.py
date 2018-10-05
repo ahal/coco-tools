@@ -96,7 +96,7 @@ def view_file(
 	elif filetype == TYPE_JSDCOV:
 		chrome_map_path, chrome_map_name = os.path.split(chrome_map)
 		fmtd_test_dict = chrome_mapping_rewrite(
-			get_jsdcov_file(root, file),
+			get_jsdcov_file(root, file, get_test_url=True),
 			chrome_map_path, chrome_map_name
 		)
 	return fmtd_test_dict
@@ -112,10 +112,11 @@ def view(
 		ignore_uniques=True,
 		chrome_map=None,
 		outputdir='',
+		delay=0
 	):
 
 	# Finds tests and shows the coverage for each of it's files.
-
+	found_test = False
 	for root, _, files in os.walk(per_test_dir):
 		for file in files:
 			if not file_in_type(file, filetype):
@@ -134,10 +135,6 @@ def view(
 				log.info("Bad JSON found: " + str(os.path.join(root,file)))
 				continue
 
-
-			log.info("--With root: " + root)
-			log.info("--From file: " + file)
-
 			test_name = ''
 			suite_name = ''
 			if 'test' in fmtd_test_dict:
@@ -150,10 +147,12 @@ def view(
 				}
 
 			if test_name:
-				if not pattern_find(test_name, args.tests):
+				if not pattern_find(test_name, test_files):
 					continue
 			else:
 				log.info("No test names found in data, showing all tests.")
+
+			found_test = True
 
 			filt_test_dict = {
 				sf: fmtd_test_dict['source_files'][sf]
@@ -161,8 +160,15 @@ def view(
 				if pattern_find(sf, sources)
 			}
 
+			log.info("--With root: " + root)
+			log.info("--From file: " + file)
 			log.info("Test-name: " + test_name)
 			log.info("Suite: " + suite_name)
+
+			if not filt_test_dict:
+				log.info("Found no source files.")
+				continue
+
 			log.info(
 				"Coverage: \n" + "\n\n".join(
 					[
@@ -173,12 +179,18 @@ def view(
 			)
 			log.info("")
 
+			if delay:
+				time.sleep(delay)
+
 			if outputdir:
 				save_json(
 					filt_test_dict,
 					save_view_json,
 					'view_' + os.path.splitext(file)[0] + '_' + str(int(time.time())) + '.json'
 				)
+
+	if not found_test:
+		log.info("No tests found.")
 
 
 def run(args=None, config=None):

@@ -242,17 +242,27 @@ def format_per_test_file(data, get_hits=False, return_test_name=False):
 	return fmtd_per_test_data
 
 
-def get_jsdcov_file(path, filename):
+def get_jsdcov_file(path, filename, get_test_url=False):
 	with open(os.path.join(path, filename)) as f:
 		data = json.load(f)
-	return format_jsdcov_file(data)
+	return format_jsdcov_file(data, get_test_url=get_test_url)
 
 
-def format_jsdcov_file(jsdcov_data):
+def format_jsdcov_file(jsdcov_data, get_test_url=False):
 	fmtd_jsdcov_data = {}
+
+	if get_test_url:
+		fmtd_jsdcov_data = {
+			'test': '',
+			'source_files': {}
+		}
+
+	test_url = ''
 	for cov_el in jsdcov_data:
 		if 'sourceFile' not in cov_el:
 			continue
+		if get_test_url and not fmtd_jsdcov_data['test'] and 'testUrl' in cov_el:
+			fmtd_jsdcov_data['test'] = cov_el['testUrl']
 
 		fmtd_jsdcov_data[cov_el['sourceFile']] = cov_el['covered']
 	return fmtd_jsdcov_data

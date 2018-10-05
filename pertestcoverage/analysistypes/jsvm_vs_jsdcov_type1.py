@@ -1,6 +1,7 @@
 import os
 import json
 import copy
+import logging
 
 from ..cli import AnalysisParser
 
@@ -14,6 +15,8 @@ from ..utils.cocoanalyze.general_comparison import (
 )
 
 RETRY = {"times": 3, "sleep": 5}
+
+log = logging.getLogger("pertestcoverage")
 
 
 def get_sets_common_and_different(files1, files2, forward_diff_name='list1-list2',
@@ -44,8 +47,6 @@ def correct_ccov_for_baseline(ccov_data, baseline_ccov_data, level='file'):
 		file1_name=file1_name, file2_name=file2_name
 	)
 
-	print("Aalherh")
-	print(different)
 	unique_to_data = {}
 	if level == "file":
 		unique_to_data = different[forward_diff_name]
@@ -118,6 +119,8 @@ def run(args=None, config=None):
 			res[file] = coverage
 		return res
 
+	log.info("Gathering data...")
+
 	# Get JSVM data
 	coverage_query_json['where']['and'][0]['eq']['task.id'] = jsvm_taskid
 	jsvm_data = format_results(query_activedata(coverage_query_json))
@@ -132,7 +135,7 @@ def run(args=None, config=None):
 	coverage_query_json['where']['and'][0]['eq']['task.id'] = jsdcov_baseline_taskid
 	jsdcov_baseline_data = format_results(query_activedata(coverage_query_json))
 
-	jsvm_basecorr_data = correct_ccov_for_baseline(jsvm_data, jsvm_baseline_data)
+	jsvm_basecorr_data = jsvm_data #correct_ccov_for_baseline(jsvm_data, jsvm_baseline_data)
 	jsdcov_basecorr_data = correct_ccov_for_baseline(jsdcov_data, jsdcov_baseline_data)
 
 	save_json(jsdcov_data, outputdir, 'jsdcov_saveit.json')
@@ -140,6 +143,7 @@ def run(args=None, config=None):
 	save_json(jsdcov_basecorr_data, outputdir, 'jsdcov-base.json')
 	save_json(jsvm_basecorr_data, outputdir, 'jsvm-base.json')
 
+	log.info("Getting differences...")
 	common_to_both = {}
 	different_between = {}
 	common_to_both, different_between = get_common_and_different(
@@ -149,12 +153,11 @@ def run(args=None, config=None):
 	)
 
 	# Save before proceeding
+	log.info("Saving results to: " + str(outputdir))
 	filen = 'common.json'
 	with open(os.path.join(outputdir, filen), 'w+') as f:
 		json.dump(common_to_both, f, indent=4)
 
 	filen = 'differences.json'
-	print("Differences: ")
-	print(different_between)
 	with open(os.path.join(outputdir, filen), 'w+') as f:
 		json.dump(different_between, f, indent=4)
