@@ -1,6 +1,6 @@
 # Current usage of tool
 
-First clone and run the following:
+First clone and run the following (Python 3 required):
 ```
 cd coco-tools
 py setup.py install
@@ -13,6 +13,8 @@ ptc patch_analysis -c C:\tmp\config.yml # This will run a patch analysis
 ```
 
 All `ptc` analysis types take a YAML config to make it simpler to configure the algorithms (rather than passing a bunch of random flags through the CLI)
+
+On linux you may have to do the following if you have errors with matplotlib `sudo apt-get install python3-tk`
 
 
 # OLD USAGE BELOW
