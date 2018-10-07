@@ -115,9 +115,7 @@ class AnalysisParser(ArgumentParser):
 		else:
 			with open(norm_config_path, 'r') as f:
 				try:
-					print('ehere')
 					args.config = yaml.safe_load(f)
-					print(args.config)
 				except Exception as e:
 					print(e)
 
