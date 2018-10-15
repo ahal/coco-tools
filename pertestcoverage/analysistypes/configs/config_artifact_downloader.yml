@@ -1,0 +1,6 @@
+outputdir: "/home/sparky/Documents/tmp/"
+task_group_id: "IOw6KhpsTbCXQrT2IS_jDQ"
+test_suites_list: ["test-coverage"]
+pattern_match_suites: True
+artifact_to_get: "per-test"
+unzip_artifact: True
