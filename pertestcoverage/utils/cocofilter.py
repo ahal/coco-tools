@@ -329,3 +329,60 @@ def group_tests(json_data_list):
 				test_groups[test_name].append(per_test_data2)
 
 	return test_groups
+
+
+def find_support_files_modified(files_modified, test, mozilla_source_path):
+	support_files = []
+
+	if not mozilla_source_path:
+		log.info("Mozilla-central source directory path requried.")
+		return support_files
+
+	# Get test directory
+	test_dir, test_name = os.path.split(os.path.join(moziilla_source_path, test))
+	ini_path = None
+	ini_lines = None
+
+	# Get the *.ini file this test is found in
+	for root, _, files in os.walk(test_dir):
+		for file in files:
+			if not file.endswith('.ini'):
+				continue
+
+			# Found a .ini file, check if this contains the test
+			ini_path = os.path.join(root, file)
+			with open(ini_path, 'r') as f:
+				lines = f.readlines()
+
+			for line in lines:
+				if test_name in line:
+					# Found the correct .ini file, stop searching.
+					ini_lines = lines
+					break
+
+	if not ini_lines:
+		log.info("Cannot find manifest files for test: " + test)
+		return support_files
+
+	# Get file names
+	modfiles_names = []
+	for file in files_modified:
+		_, name = os.path.split(file)
+		modfiles_names.append(name)
+
+	# Find files that exist in manifest
+	for line in ini_lines:
+		for file in modfiles_names:
+			if file in line:
+				support_files.append(file)
+				break
+
+	# Recompute support file names
+	rcmpt_source_files = []
+	for file in support_files:
+		for modfile in files_modified:
+			if file in modfile:
+				rcmpt_source_files.append(modfile)
+				break
+
+	return rcmpt_source_files
