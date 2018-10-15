@@ -1,0 +1,26 @@
+numpatches: 400
+startrev: "981bcfe73738" #"7ac88abc3c57" #"981bcfe73738" #"d03b538b6b41" #"d2218beee052" # #"48cc597db296"
+outputdir: "/home/sparky/Documents/tmp/"
+analysisbranch: "mozilla-inbound"
+
+# For each branch in the given changesets, specify the HG repository i.e. mozilla-inbound -> integration/mozilla-inbound
+hg_analysisbranch:
+    mozilla-inbound: "integration/mozilla-inbound" # This may sometimes be different from `analysisbranch`
+    autoland: "integration/autoland"
+
+# This must be a list of CSV files
+# with the same format as sample_csv.csv:
+#   (fixed_by_revision, job_name, repo, test_fixed)
+changesets: [
+    '/home/sparky/Downloads/fixed_by_commit_information.csv'
+]
+
+tc_tasks_rev_n_branch: [
+    ["c2c4f907c230", "try"],
+]
+
+pertest_rawdata_folders: [
+    "/home/sparky/Documents/tmp/IOw6KhpsTbCXQrT2IS_jDQ/"
+]
+
+chrome_map: "/home/sparky/Documents/tmp/IOw6KhpsTbCXQrT2IS_jDQ/chrome-map.json"

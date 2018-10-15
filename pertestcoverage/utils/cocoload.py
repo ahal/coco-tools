@@ -55,7 +55,10 @@ def save_json(data, path, filename):
 		json.dump(data, f, indent=4)
 
 
-def chrome_mapping_rewrite(srcfiles, chrome_map_path, chrome_map_name):
+def chrome_mapping_rewrite(srcfiles, chrome_map_path, chrome_map_name=None):
+	if not chrome_map_name:
+		chrome_map_path, chrome_map_name = os.path.split(chrome_map_path)
+
 	with open(os.path.join(chrome_map_path, chrome_map_name)) as f:
 		chrome_mapping = json.load(f)[0]
 
@@ -96,6 +99,69 @@ def get_changesets(hg_analysisbranch, startrevision, numpatches):
 	return changesets
 
 
+def get_coverage_tests(
+		rev_n_branch_list=[],
+		get_failed=False,
+		get_files=[]
+	):
+
+	all_test_query_json = {
+		"from":"coverage",
+		"where":{"and":[
+			{"eq":{"repo.changeset.id12":None}},
+			{"eq":{"repo.branch.name":None}}
+		]},
+		"limit":100000,
+		"groupby":[{"name":"test","value":"test.name"}]
+	}
+
+	if get_failed:
+		all_test_query_json['where']['and'].append(
+			{"ne":{"task.state":"completed"}}
+		)
+
+	if get_files:
+		all_test_query_json['where']['and'].extend([
+			{"in": {"source.file.name": get_files}},
+			{"gt":{"source.file.total_covered":0}}
+		])
+
+	all_tests = []
+	for rev, branch in rev_n_branch_list:
+		all_test_query_json['where']['and'][0]['eq']['repo.changeset.id12'] = rev
+		all_test_query_json['where']['and'][1]['eq']['repo.branch.name'] = branch
+
+		try:
+			all_tests = list(
+				set(all_tests) | set(
+					[testchunk[0] for testchunk in query_activedata(all_test_query_json)]
+				)
+			)
+		except Exception as e:
+			log.info("Failed to query for covered tests:" + str(e))
+
+	return all_tests
+
+
+def get_coverage_tests_from_jsondatalist(jsondatalist, get_files=['all']):
+	all_tests = []
+	for pertestjson in jsondatalist:
+		if 'test' not in pertestjson:
+			log.info("Cannot find test name in pertest json data.")
+			continue
+
+		if 'all' not in get_files:
+			source_files = pertestjson['source_files']
+			for file in get_files:
+				if file in source_files:
+					all_tests.append(pertestjson['test'])
+					break
+		else:
+			all_tests.append(pertestjson['test'])
+	return all_tests
+
+
+
 def get_jsonpaths_from_dir(jsons_dir, file_matchers=None):
 	json_paths = []
 	for root, _, files in os.walk(jsons_dir):
@@ -134,6 +200,27 @@ def get_all_jsons(args=None):
 			else:
 				fmtd_test_dict = get_per_test_file(
 					root, file, return_test_name=True
+				)
+			fmtd_test_dict['location'] = os.path.join(root, file)
+			json_data.append(fmtd_test_dict)
+		except KeyError as e:
+			print("Bad JSON found: " + str(os.path.join(root,file)))
+	return json_data
+
+
+def get_all_pertest_jsons(pertestdir='', chrome_map_path=''):
+	jsonpaths = get_jsonpaths_from_dir(pertestdir)
+	json_data = []
+
+	for root, file in jsonpaths:
+		try:
+			fmtd_test_dict = get_per_test_file(
+				root, file, return_test_name=True
+			)
+			if chrome_map_path:
+				fmtd_test_dict['source_files'] = chrome_mapping_rewrite(
+					fmtd_test_dict['source_files'],
+					chrome_map_path=chrome_map_path,
 				)
 			fmtd_test_dict['location'] = os.path.join(root, file)
 			json_data.append(fmtd_test_dict)
@@ -215,6 +302,8 @@ def format_per_test_scored_file(data, return_test_name=False, get_hits=False,
 def get_per_test_file(path, filename, get_hits=False, return_test_name=False):
 	with open(os.path.join(path, filename)) as f:
 		data = json.load(f)
+	if type(data) != dict:
+		raise KeyError("Not a dictionary JSON.")
 	return format_per_test_file(
 		data, return_test_name=return_test_name, get_hits=get_hits
 	)

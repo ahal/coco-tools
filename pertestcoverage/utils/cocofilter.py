@@ -3,7 +3,7 @@ import numpy as np
 import random
 from scipy import stats as scistats
 from matplotlib import pyplot as plt
-from cocoload import pattern_find, format_to_level, level_check
+from ..utils.cocoload import pattern_find, format_to_level, level_check
 
 
 def filter_ttest(json_data_list, t_test_bounds):

@@ -8,12 +8,15 @@ from matplotlib import pyplot as plt
 
 from ..cli import AnalysisParser
 
+from ..utils.cocofilter import filter_per_test_tests
 from ..utils.cocoload import (
 	save_json,
 	get_http_json,
 	query_activedata,
 	get_changesets,
 	get_coverage_tests,
+	get_coverage_tests_from_jsondatalist,
+	get_all_pertest_jsons,
 	HG_URL
 )
 
@@ -67,6 +70,8 @@ def run(args=None, config=None):
 	changesets_list = config['changesets']
 	outputdir = config['outputdir']
 	tc_tasks_rev_n_branch = config['tc_tasks_rev_n_branch']
+	pertest_rawdata_folders = config['pertest_rawdata_folders']
+	chrome_map = config['chrome_map']
 
 	changesets = []
 	for csets_csv_path in changesets_list:
@@ -112,6 +117,10 @@ def run(args=None, config=None):
 		"select":[{"name":"test","value":"result.test"}]
 	}
 
+	jsondatalist = []
+	for location in pertest_rawdata_folders:
+		jsondatalist.extend(get_all_pertest_jsons(location, chrome_map_path=chrome_map))
+
 	all_failed_ptc_tests = get_coverage_tests(tc_tasks_rev_n_branch, get_failed=True)
 
 	tests_for_changeset = {}
@@ -121,9 +130,10 @@ def run(args=None, config=None):
 	histogram1_datalist = []
 
 	# For each patch
+	count_changesets_processed = 0
 	all_changesets = []
 	for count, tp in enumerate(changesets):
-		if count >= numpatches:
+		if count_changesets_processed >= numpatches:
 			continue
 
 		if len(tp) == 4:
@@ -131,7 +141,7 @@ def run(args=None, config=None):
 		else:
 			cov_exists, status, code, changeset, _, repo, test_fixed, _ = tp
 
-			if cov_exists == 'no':
+			if 'test' in status:
 				continue
 
 		changeset = changeset[:12]
@@ -153,7 +163,7 @@ def run(args=None, config=None):
 
 		try:
 			failed_tests = query_activedata(failed_tests_query_json)
-			all_tests = get_coverage_tests(tc_tasks_rev_n_branch, get_files=files_modified)
+			all_tests = get_coverage_tests_from_jsondatalist(jsondatalist, get_files=files_modified)
 		except Exception as e:
 			log.info("Error running query: " + str(test_coverage_query_json))
 
@@ -189,19 +199,14 @@ def run(args=None, config=None):
 		tests_for_changeset[changeset_name]['numtests'] = len(all_tests)
 		tests_for_changeset[changeset_name]['numtestsfailed'] = 1
 		tests_for_changeset[changeset_name]['numtestsnotrun'] = len(all_tests_not_run)
-		tests_for_changeset[changeset_name]['reasons_not_run'] = '' if len(all_tests_not_run) == 0 else 'unknown'
+		tests_for_changeset[changeset_name]['reasons_not_run'] = '' if len(all_tests_not_run) == 0 else 'no_coverage_link_with_test'
 		tests_for_changeset[changeset_name]['files_modified'] = files_modified
 		tests_for_changeset[changeset_name]['testsnotrun'] = all_tests_not_run
 
 		for test in all_tests_not_run:
-			if test in all_failed_ptc_tests:
-				tests_for_changeset[changeset_name]['reasons_not_run'] = 'failed_test'
-				continue
-			
-			coverage_query['where']['and'][2]['eq']['test.name'] = test_fixed
-			coverage_data = query_activedata(coverage_query)
-			if len(coverage_data) == 0:
-				tests_for_changeset[changeset_name]['reasons_not_run'] =  'no_coverage_for_test'
+			coverage_data = filter_per_test_tests(jsondatalist, test)
+			if not coverage_data:
+				tests_for_changeset[changeset_name]['reasons_not_run'] =  'no_coverage_json_for_test'
 				continue
   
 		log.info("Reason not run (if any): " + tests_for_changeset[changeset_name]['reasons_not_run'])
@@ -209,6 +214,7 @@ def run(args=None, config=None):
 
 		all_changesets.append(changeset)
 		histogram1_datalist.append((1, 1-len(all_tests_not_run), changeset))
+		count_changesets_processed += 1
 
 
 	## Save results (number, and all tests scheduled)
@@ -216,43 +222,58 @@ def run(args=None, config=None):
 		log.info("\nSaving results to output directory: " + outputdir)
 		save_json(tests_for_changeset, outputdir, str(int(time.time())) + '_per_changeset_breakdown.json')
 
-	## Plot the results
-	f, b1 = plot_histogram(
-		data=[numtestsfailed for numtestsfailed, _, _ in histogram1_datalist],
-		x_labels=all_changesets,
-		title="Tests scheduled (Y) over all changesets (X)"
-	)
-
 	# Plot a second bar on top
-	b2 = plt.bar(range(len(all_changesets)), [pertesttests for _, pertesttests, _ in histogram1_datalist])
+	f = plt.figure()
 
-	b3 = plt.bar(
-		range(len(all_changesets)),
-		[
-			1 if tests_for_changeset[cset + "_1"]['reasons_not_run'] == 'no_coverage_for_test' else 0
+	numchangesets = len(all_changesets)
+	total_correct = sum([
+			1 if not tests_for_changeset[cset + "_1"]['reasons_not_run'] else 0
 			for cset in all_changesets
-		],
-		color='red'
-	)
-
-	b4 = plt.bar(
-		range(len(all_changesets)),
-		[
-			1 if tests_for_changeset[cset + "_1"]['reasons_not_run'] == 'failed_test' else 0
+	])
+	total_no_coverage_data = sum([
+			1 if tests_for_changeset[cset + "_1"]['reasons_not_run'] == 'no_coverage_json_for_test' else 0
 			for cset in all_changesets
+	])
+	total_no_coverage_link = sum([
+			1 if tests_for_changeset[cset + "_1"]['reasons_not_run'] == 'no_coverage_link_with_test' else 0
+			for cset in all_changesets
+	])
+
+	b2 = plt.pie(
+		[
+			100 * (total_correct/numchangesets),
+			100 * (total_no_coverage_data/numchangesets) + 100 * (total_no_coverage_link/numchangesets)
 		],
-		color='black'
+		colors=['green', 'red'],
+		labels=[
+			'Successfully scheduled with per-test coverage data',
+			'Not successfully scheduled'
+		],
+		autopct='%1.1f%%'
 	)
 
-	plt.legend(
-		(b1[0], b2[0], b3[0], b4[0]),
-		(
-			'# of failed tests',
-			'# of per-test scheduled tests',
-			'No coverage for test',
-			'Test failed on try runs'
-		)
+	plt.legend()
+
+	f2 = plt.figure()
+
+	b2 = plt.pie(
+		[
+			100 * (total_correct/numchangesets),
+			100 * (total_no_coverage_data/numchangesets),
+			100 * (total_no_coverage_link/numchangesets)
+		],
+		colors=['green', 'red', 'orange'],
+		labels=[
+			'Successfully scheduled with per-test coverage data',
+			'No data found in treeherder',
+			'No coverage link between source files modified and test fixed'
+		],
+		autopct='%1.1f%%'
 	)
+
+	plt.legend()
+
+	log.info("Total number of changesets in pie chart: " + str(numchangesets))
 
 	log.info("Close figures to end analysis.")
 	log.info("Changesets analyzed (use these in other analysis types if possible): \n" + str(all_changesets))

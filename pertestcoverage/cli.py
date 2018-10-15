@@ -115,7 +115,6 @@ class AnalysisParser(ArgumentParser):
 		else:
 			with open(norm_config_path, 'r') as f:
 				args.config = yaml.safe_load(f)
-
 		return args
 
 

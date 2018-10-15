@@ -11,5 +11,5 @@ jsvm_baseline_taskid: "DWiQOwvMQ9iBRw0SjMnwdg"
 jsdcov_taskid: "Uh0v_-MLSsy5zJvurKHelQ"
 jsdcov_baseline_taskid: "J6-a3OXaSO-pQKzATy6YIg"
 
-chrome_map: "C:/Users/greg/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/chrome-map.json"
-outputdir : "C:/Users/greg/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/results/"
+chrome_map: "/home/sparky/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/chrome-map.json"
+outputdir : "/home/sparky/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/results/"
