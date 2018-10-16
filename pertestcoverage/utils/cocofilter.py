@@ -1,9 +1,15 @@
 import copy
 import numpy as np
 import random
+import os
+import logging
+
 from scipy import stats as scistats
 from matplotlib import pyplot as plt
+
 from ..utils.cocoload import pattern_find, format_to_level, level_check
+
+log = logging.getLogger("pertestcoverage")
 
 
 def filter_ttest(json_data_list, t_test_bounds):
@@ -331,15 +337,34 @@ def group_tests(json_data_list):
 	return test_groups
 
 
-def find_support_files_modified(files_modified, test, mozilla_source_path):
+def get_manifest_lines(manifest_path):
+	with open(manifest_path, 'r') as f:
+		lines = f.readlines()
+	return lines
+
+
+def get_manifest_includes(manifest_lines):
+	includes = []
+	for line in manifest_lines:
+		if '[include:' in line:
+			included_manifest = str(line.split(':')).split(']')[0]
+			includes.append(included_manifest)
+	return includes
+
+
+def find_support_files_modified(files_modified, test, mozcentral_path):
 	support_files = []
 
-	if not mozilla_source_path:
+	if not mozcentral_path:
 		log.info("Mozilla-central source directory path requried.")
 		return support_files
 
 	# Get test directory
-	test_dir, test_name = os.path.split(os.path.join(moziilla_source_path, test))
+	test_dir, test_name = os.path.split(os.path.join(mozcentral_path, test))
+	if not os.path.exists(test_dir):
+		log.info("Cannot find test directory: " + test_dir)
+		return support_files
+
 	ini_path = None
 	ini_lines = None
 
@@ -350,15 +375,27 @@ def find_support_files_modified(files_modified, test, mozilla_source_path):
 				continue
 
 			# Found a .ini file, check if this contains the test
+			# and get all its included manifests.
 			ini_path = os.path.join(root, file)
-			with open(ini_path, 'r') as f:
-				lines = f.readlines()
+			lines = get_manifest_lines(ini_path)
 
 			for line in lines:
 				if test_name in line:
 					# Found the correct .ini file, stop searching.
 					ini_lines = lines
 					break
+
+			if ini_lines:
+				included_manifests = get_manifest_includes(ini_lines)
+				for manifest in included_manifests:
+					ini_lines.extend(
+						get_manifest_lines(os.path.join(root, manifest))
+					)
+
+				break
+
+		if ini_lines:
+			break
 
 	if not ini_lines:
 		log.info("Cannot find manifest files for test: " + test)

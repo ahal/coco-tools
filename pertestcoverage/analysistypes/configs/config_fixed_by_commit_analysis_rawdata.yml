@@ -24,3 +24,5 @@ pertest_rawdata_folders: [
 ]
 
 chrome_map: "/home/sparky/Documents/tmp/IOw6KhpsTbCXQrT2IS_jDQ/chrome-map.json"
+
+mozcentral_path: "/home/sparky/mozilla-source/mozilla-central/"

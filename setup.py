@@ -16,6 +16,7 @@ DEPS = [
     'numpy',
     'matplotlib',
     'ruamel.yaml',
+    'scipy'
 ]
 
 setup(

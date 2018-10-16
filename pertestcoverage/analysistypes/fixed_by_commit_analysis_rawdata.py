@@ -8,7 +8,11 @@ from matplotlib import pyplot as plt
 
 from ..cli import AnalysisParser
 
-from ..utils.cocofilter import filter_per_test_tests
+from ..utils.cocofilter import (
+	find_support_files_modified,
+	filter_per_test_tests
+)
+
 from ..utils.cocoload import (
 	save_json,
 	get_http_json,
@@ -72,6 +76,7 @@ def run(args=None, config=None):
 	tc_tasks_rev_n_branch = config['tc_tasks_rev_n_branch']
 	pertest_rawdata_folders = config['pertest_rawdata_folders']
 	chrome_map = config['chrome_map']
+	mozcentral_path = config['mozcentral_path']
 
 	changesets = []
 	for csets_csv_path in changesets_list:
@@ -141,11 +146,18 @@ def run(args=None, config=None):
 		else:
 			cov_exists, status, code, changeset, _, repo, test_fixed, _ = tp
 
+			if cov_exists != 'yes':
+				continue
+
 			if 'test' in status:
 				continue
 
+		if test_fixed.startswith("xpcshell.ini:"):
+			continue
+
 		changeset = changeset[:12]
 
+		log.info("")
 		log.info("On changeset " + "(" + str(count) + "): " + changeset)
 
 		# Get patch
@@ -154,6 +166,20 @@ def run(args=None, config=None):
 		data = get_http_json(files_url)
 
 		files_modified = data[changeset]['files']
+
+		# Filter modified files to only exclude all test or test helper files
+		support_files = find_support_files_modified(files_modified, test_fixed, mozcentral_path)
+		log.info("Support-files found in files modified: " + str(support_files))
+
+		files_modified = list(set(files_modified) - set(support_files))
+		files_modified = [
+			f for f in files_modified
+			if '/test/' not in f or'/tests/' not in f or 'testing/' not in f
+		]
+
+		if len(files_modified) == 0:
+			log.info("No files modified after filtering support files.")
+			continue
 
 		# Get tests that use this patch
 		failed_tests_query_json['where']['and'][0] = {"eq": {"repo.changeset.id12": changeset}}
@@ -210,12 +236,12 @@ def run(args=None, config=None):
 				continue
   
 		log.info("Reason not run (if any): " + tests_for_changeset[changeset_name]['reasons_not_run'])
-		log.info("")
 
 		all_changesets.append(changeset)
 		histogram1_datalist.append((1, 1-len(all_tests_not_run), changeset))
 		count_changesets_processed += 1
 
+	log.info("")
 
 	## Save results (number, and all tests scheduled)
 	if outputdir:
