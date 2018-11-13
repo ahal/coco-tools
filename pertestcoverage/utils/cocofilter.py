@@ -3,11 +3,18 @@ import numpy as np
 import random
 import os
 import logging
+import requests
 
 from scipy import stats as scistats
 from matplotlib import pyplot as plt
 
-from ..utils.cocoload import pattern_find, format_to_level, level_check
+from ..utils.cocoload import (
+	pattern_find,
+	format_to_level,
+	level_check,
+	hg_branch,
+	HG_URL
+)
 
 log = logging.getLogger("pertestcoverage")
 
@@ -337,6 +344,66 @@ def group_tests(json_data_list):
 	return test_groups
 
 
+def find_new_files_in_changesets(cset_n_repo_list):
+	cset_to_newfiles = {}
+	for count, (cset, repo) in enumerate(cset_n_repo_list):
+		print("On changeset (%s): %s" % (count+1, cset[:12]))
+		cset_to_newfiles[cset] = find_files_in_changeset(cset, repo)[0]
+	return cset_to_newfiles
+
+
+def find_removed_files_in_changesets(cset_n_repo_list):
+	cset_to_newfiles = {}
+	for count, (cset, repo) in enumerate(cset_n_repo_list):
+		log.info("On changeset (%s): %s" % (count+1, cset[:12]))
+		cset_to_newfiles[cset] = find_files_in_changeset(cset, repo)[1]
+	return cset_to_newfiles
+
+
+def find_all_files_in_changesets(cset_n_repo_list):
+	cset_to_newfiles = {}
+	for count, (cset, repo) in enumerate(cset_n_repo_list):
+		log.info("On changeset (%s): %s" % (count+1, cset[:12]))
+		cset_to_newfiles[cset] = find_files_in_changeset(cset, repo)[2]
+	return cset_to_newfiles
+
+
+def find_files_in_changeset(changeset, repo):
+	req_url = HG_URL + hg_branch(repo) + "raw-rev/" + changeset[:12]
+
+	r = requests.get(req_url)
+	lines = r.content.decode('utf-8').split('\n')
+
+	all_files = []
+	new_files = []
+	removed_files = []
+	for count, line in enumerate(lines):
+		if line.startswith('--- a'):
+			old_file = line.strip('--- a').replace('\n', '').replace(' ', '')
+			new_file = lines[count+1].strip('+++ b').replace('\n', '').replace(' ', '')
+
+			all_files.append(old_file)
+			all_files.append(new_file)
+			if old_file != new_file:
+				if 'dev/null' in new_file:
+					removed_files.append(old_file)
+				elif 'dev/null' in old_file:
+					new_files.append(new_file)
+				else:
+					removed_files.append(old_file)
+					new_files.append(new_file)
+
+	if len(list(set(all_files) - set(new_files))) == 0:
+		log.info("Only new files in the changeset.")
+
+	print(
+		"Found %s new files, %s removed files, %s total files.\n" % 
+		(len(new_files), len(removed_files), len(all_files))
+	)
+
+	return list(set(new_files)), list(set(removed_files)), list(set(all_files))
+
+
 def get_manifest_lines(manifest_path):
 	with open(manifest_path, 'r') as f:
 		lines = f.readlines()
@@ -346,7 +413,7 @@ def get_manifest_lines(manifest_path):
 def get_manifest_includes(manifest_lines):
 	includes = []
 	for line in manifest_lines:
-		if '[include:' in line:
+		if '[include:' in line or '[parent:' in line:
 			included_manifest = str(line.split(':')).split(']')[0]
 			includes.append(included_manifest)
 	return includes
@@ -373,27 +440,29 @@ def find_support_files_modified(files_modified, test, mozcentral_path):
 		for file in files:
 			if not file.endswith('.ini'):
 				continue
+			try:
+				# Found a .ini file, check if this contains the test
+				# and get all its included manifests.
+				ini_path = os.path.join(root, file)
+				lines = get_manifest_lines(ini_path)
 
-			# Found a .ini file, check if this contains the test
-			# and get all its included manifests.
-			ini_path = os.path.join(root, file)
-			lines = get_manifest_lines(ini_path)
+				for line in lines:
+					if test_name in line:
+						# Found the correct .ini file, stop searching.
+						ini_lines = lines
+						break
 
-			for line in lines:
-				if test_name in line:
-					# Found the correct .ini file, stop searching.
-					ini_lines = lines
+				if ini_lines:
+					included_manifests = get_manifest_includes(ini_lines)
+					for manifest in included_manifests:
+						ini_lines.extend(
+							get_manifest_lines(os.path.join(root, manifest))
+						)
+
 					break
-
-			if ini_lines:
-				included_manifests = get_manifest_includes(ini_lines)
-				for manifest in included_manifests:
-					ini_lines.extend(
-						get_manifest_lines(os.path.join(root, manifest))
-					)
-
+			except Exception as e:
+				log.info("Unexpected error occurred: " + str(e))
 				break
-
 		if ini_lines:
 			break
 
@@ -423,3 +492,52 @@ def find_support_files_modified(files_modified, test, mozcentral_path):
 				break
 
 	return rcmpt_source_files
+
+
+def clean_test_name(test_name, mozcentral_path=None, ignore_wpt_existence=False):
+	test_name = test_name.lstrip('/')
+	if '=' in test_name and test_name.startswith('file:'):
+		# JS test with odd name
+		test_name = 'js/src/tests/' + test_name.split('=')[-1]
+		return test_name
+	else:
+		test_name = test_name.split('=')[0]
+
+	if '?' in test_name:
+		test_name = test_name.split('?')[0]
+
+	reftest_prefix = 'file:///builds/worker/workspace/build/tests/reftest/tests/'
+	if test_name.startswith(reftest_prefix):
+		return test_name.replace(reftest_prefix, '')
+
+	def replace_wpt_mozilla_path(test_path):
+		if '_mozilla' in test_path:
+			test_path = test_path.replace('tests/_mozilla', 'mozilla/tests')
+		return test_path
+
+	wpt_prefix = 'testing/web-platform/tests'
+	if mozcentral_path:
+		new_path = os.path.join(
+			os.path.abspath(mozcentral_path), wpt_prefix, test_name
+		)
+		test_name = replace_wpt_mozilla_path(test_name)
+		if os.path.exists(new_path):
+			test_name = os.path.join(wpt_prefix, test_name)
+	if ignore_wpt_existence:
+		test_name = os.path.join(wpt_prefix, test_name)
+		test_name = replace_wpt_mozilla_path(test_name)
+
+	return test_name
+
+
+def clean_test_names(test_names, mozcentral_path=None, ignore_wpt_existence=False):
+	mapping = {}
+	for test_name in test_names:
+		new_name = clean_test_name(
+			test_name,
+			mozcentral_path=mozcentral_path,
+			ignore_wpt_existence=ignore_wpt_existence
+		)
+		mapping[test_name] = new_name
+	return mapping.values(), mapping
+

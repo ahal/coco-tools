@@ -17,11 +17,20 @@ HG_URL = "https://hg.mozilla.org/"
 TYPE_PERTEST = "pertestreport"
 TYPE_LCOV = "lcov"
 TYPE_JSDCOV = "jsdcov"
+TYPE_STDPTC = "std-ptc-format"
 
 TYPE_FILE_WHITELIST = {
 	TYPE_PERTEST: [".json"],
 	TYPE_LCOV: [".info"],
-	TYPE_JSDCOV: [".json"]
+	TYPE_JSDCOV: [".json"],
+	TYPE_STDPTC: ["std-ptc-format.json"]
+}
+
+BRANCH_TO_HGBRANCH = {
+	"mozilla-inbound": "integration/mozilla-inbound/",
+    "autoland": "integration/autoland/",
+    "mozilla-central": "mozilla-central/",
+    "try": "try/"
 }
 
 log = logging.getLogger('pertestcoverage')
@@ -35,6 +44,10 @@ def pattern_find(srcf_to_find, sources):
 		if srcf in srcf_to_find:
 			return True
 	return False
+
+
+def hg_branch(branch):
+	return BRANCH_TO_HGBRANCH[branch]
 
 
 def file_in_type(file, filetype):
@@ -161,16 +174,30 @@ def get_coverage_tests_from_jsondatalist(jsondatalist, get_files=['all']):
 	return all_tests
 
 
-
-def get_jsonpaths_from_dir(jsons_dir, file_matchers=None):
-	json_paths = []
-	for root, _, files in os.walk(jsons_dir):
+def get_paths_from_dir(source_dir, file_matchers=None, filetype=TYPE_PERTEST):
+	paths = []
+	for root, _, files in os.walk(source_dir):
 		for file in files:
-			if '.json' not in file:
+			if not file_in_type(file, filetype):
 				continue
 			if pattern_find(file, file_matchers):
-				json_paths.append((root, file))
+				paths.append((root, file))
+	return paths
+
+
+def get_jsonpaths_from_dir(jsons_dir, file_matchers=None):
+	json_paths = get_paths_from_dir(jsons_dir, file_matchers=file_matchers)
 	return json_paths
+
+
+def get_lcovpaths_from_dir(lcov_dir, file_matchers=None):
+	lcov_paths = get_paths_from_dir(lcov_dir, file_matchers=file_matchers, filetype=TYPE_LCOV)
+	return lcov_paths
+
+
+def get_stdptcpaths_from_dir(stdptc_dir, file_matchers=None):
+	stdptc_paths = get_paths_from_dir(stdptc_dir, file_matchers=file_matchers, filetype=TYPE_STDPTC)
+	return stdptc_paths
 
 
 def get_all_jsons(args=None):
@@ -208,7 +235,7 @@ def get_all_jsons(args=None):
 	return json_data
 
 
-def get_all_pertest_jsons(pertestdir='', chrome_map_path=''):
+def get_all_pertest_data(pertestdir='', chrome_map_path=''):
 	jsonpaths = get_jsonpaths_from_dir(pertestdir)
 	json_data = []
 
@@ -225,7 +252,45 @@ def get_all_pertest_jsons(pertestdir='', chrome_map_path=''):
 			fmtd_test_dict['location'] = os.path.join(root, file)
 			json_data.append(fmtd_test_dict)
 		except KeyError as e:
-			print("Bad JSON found: " + str(os.path.join(root,file)))
+			log.info("Bad JSON found: " + str(os.path.join(root,file)))
+	return json_data
+
+
+def get_all_lcov_data(lcovdir='', chrome_map_path=''):
+	lcovpaths = get_lcovpaths_from_dir(lcovdir)
+	json_data = []
+
+	for root, file in lcovpaths:
+		try:
+			fmtd_test_dict = get_jsvm_file(root, file)
+			if chrome_map_path:
+				fmtd_test_dict['source_files'] = chrome_mapping_rewrite(
+					fmtd_test_dict['source_files'],
+					chrome_map_path=chrome_map_path,
+				)
+			fmtd_test_dict['location'] = os.path.join(root, file)
+			json_data.append(fmtd_test_dict)
+		except Exception as e:
+			log.info("Unknown error encountered while opening LCOV files: " + str(e))
+	return json_data
+
+
+def get_all_stdptc_data(stdptcdir='', chrome_map_path=''):
+	paths = get_stdptcpaths_from_dir(stdptcdir)
+	json_data = []
+
+	for root, file in paths:
+		try:
+			fmtd_test_dict = get_std_ptc_file(root, file)
+			if chrome_map_path:
+				fmtd_test_dict['source_files'] = chrome_mapping_rewrite(
+					fmtd_test_dict['source_files'],
+					chrome_map_path=chrome_map_path,
+				)
+			fmtd_test_dict['location'] = os.path.join(root, file)
+			json_data.append(fmtd_test_dict)
+		except Exception as e:
+			log.info("Unknown error encountered while opening LCOV files: " + str(e))
 	return json_data
 
 
@@ -332,8 +397,7 @@ def format_per_test_file(data, get_hits=False, return_test_name=False):
 
 
 def get_jsdcov_file(path, filename, get_test_url=False):
-	with open(os.path.join(path, filename)) as f:
-		data = json.load(f)
+	data = open_json(path, filename)
 	return format_jsdcov_file(data, get_test_url=get_test_url)
 
 
@@ -387,7 +451,7 @@ def get_http_json(url):
 
 def query_activedata(query_json, debug=False, active_data_url=None):
 	if not active_data_url:
-		active_data_url = "http://54.149.21.8/query"
+		active_data_url = "http://activedata.allizom.org/query"
 
 	req = urllib.request.Request(active_data_url)
 	req.add_header('Content-Type', 'application/json')
@@ -427,6 +491,10 @@ def get_jsvm_file(path, filename, jsonify=True):
 		return artifact_data
 	else:
 		return jsonify_ccov_artifact(artifact_data)
+
+
+def get_std_ptc_file(path, filename):
+	return open_json(path, filename)
 
 
 def jsonify_ccov_artifact(file_lines):

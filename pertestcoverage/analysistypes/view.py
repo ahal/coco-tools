@@ -12,11 +12,13 @@ from ..utils.cocoload import (
 	get_per_test_file,
 	get_jsvm_file,
 	get_jsdcov_file,
+	get_std_ptc_file,
 	pattern_find,
 	save_json,
 	TYPE_PERTEST,
 	TYPE_LCOV,
-	TYPE_JSDCOV
+	TYPE_JSDCOV,
+	TYPE_STDPTC
 )
 
 log = logging.getLogger('pertestcoverage')
@@ -99,6 +101,12 @@ def view_file(
 			get_jsdcov_file(root, file, get_test_url=True),
 			chrome_map_path, chrome_map_name
 		)
+	elif filetype == TYPE_STDPTC:
+		chrome_map_path, chrome_map_name = os.path.split(chrome_map)
+		fmtd_test_dict = chrome_mapping_rewrite(
+			get_std_ptc_file(root, file),
+			chrome_map_path, chrome_map_name
+		)
 	return fmtd_test_dict
 
 
@@ -112,11 +120,15 @@ def view(
 		ignore_uniques=True,
 		chrome_map=None,
 		outputdir='',
-		delay=0
+		delay=0,
+		show_total=True,
+		show_src_coverage=True
 	):
 
 	# Finds tests and shows the coverage for each of it's files.
+	total_datapoints = 0
 	found_test = False
+	tests_found = []
 	for root, _, files in os.walk(per_test_dir):
 		for file in files:
 			if not file_in_type(file, filetype):
@@ -135,6 +147,8 @@ def view(
 				log.info("Bad JSON found: " + str(os.path.join(root,file)))
 				continue
 
+			total_datapoints += 1
+
 			test_name = ''
 			suite_name = ''
 			if 'test' in fmtd_test_dict:
@@ -149,6 +163,7 @@ def view(
 			if test_name:
 				if not pattern_find(test_name, test_files):
 					continue
+				tests_found.append(test_name)
 			else:
 				log.info("No test names found in data, showing all tests.")
 
@@ -169,14 +184,18 @@ def view(
 				log.info("Found no source files.")
 				continue
 
-			log.info(
-				"Coverage: \n" + "\n\n".join(
-					[
-						str(sf) + ": " +
-						str(filt_test_dict[sf]) for sf in filt_test_dict
-					]
+			if show_src_coverage:
+				log.info(
+					"Coverage: \n" + "\n\n".join(
+						[
+							str(sf) + ": " +
+							str(filt_test_dict[sf]) for sf in filt_test_dict
+						]
+					)
 				)
-			)
+			else:
+				log.info("Found coverage for requested files.")
+
 			log.info("")
 
 			if delay:
@@ -185,12 +204,26 @@ def view(
 			if outputdir:
 				save_json(
 					filt_test_dict,
-					save_view_json,
+					outputdir,
 					'view_' + os.path.splitext(file)[0] + '_' + str(int(time.time())) + '.json'
 				)
 
 	if not found_test:
-		log.info("No tests found.")
+		log.info("Found data, but not the requested tests.")
+	else:
+		tests_not_found = []
+		for testf in test_files:
+			found = False
+			for test in tests_found:
+				if testf in test:
+					found = True
+					break
+			if not found:
+				tests_not_found.append(testf)
+		log.info("Could not find data for these tests: " + str(tests_not_found))
+
+	if show_total:
+		log.info("Total number of data points observed: " + str(total_datapoints))
 
 
 def run(args=None, config=None):

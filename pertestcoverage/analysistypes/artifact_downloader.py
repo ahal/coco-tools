@@ -93,16 +93,18 @@ def download_artifact(task_id, artifact, output_dir):
 	log.info('Downloading ' + artifact['name'] + ' to: ' + fname)
 	urlretrieve('https://queue.taskcluster.net/v1/task/' + task_id + '/artifacts/' + artifact['name'], fname)
 	return fname
-
-
-def suite_name_from_task_name(name):
-	name = name[len('test-linux64-ccov/debug-'):]
-	return name
 # Marco's functions end #
 
 
+def suite_name_from_task_name(name):
+	namesplit = name.split('/')
+	suite_name = namesplit[-1].strip('debug-').strip('opt-')
+	return suite_name
+
+
 def make_count_dir(a_path):
-	os.mkdir(a_path)
+	if not os.path.exists(a_path):
+		os.mkdir(a_path)
 	return a_path
 
 
@@ -110,18 +112,17 @@ def unzip_file(abs_zip_path, output_dir, count=0):
 	tmp_path = ''
 	with zipfile.ZipFile(abs_zip_path, "r") as z:
 		tmp_path = os.path.join(output_dir, str(count))
-		if not os.path.exists(tmp_path):
-			make_count_dir(tmp_path)
+		make_count_dir(tmp_path)
 		z.extractall(tmp_path)
 	return tmp_path
 
 
 def move_file(abs_filepath, output_dir, count=0):
 	tmp_path = os.path.join(output_dir, str(count))
-	if not os.path.exists(tmp_path):
-		make_count_dir(tmp_path)
+	make_count_dir(tmp_path)
+	filename = abs_filepath.split('/')[-1]
 
-	shutil.copyfile(abs_filepath, tmp_path)
+	shutil.copyfile(abs_filepath, os.path.join(tmp_path, filename))
 	return tmp_path
 
 
@@ -132,7 +133,8 @@ def artifact_downloader(
 		download_failures=False,
 		artifact_to_get='grcov',
 		unzip_artifact=True,
-		pattern_match_suites=False
+		pattern_match_suites=False,
+		use_task_name=True
 	):
 
 	head_rev = ''
@@ -173,9 +175,9 @@ def artifact_downloader(
 	for task in tasks:
 		download_this_task = False
 		# Get the test name
-		if not task['task']['metadata']['name'].startswith('test-linux64-ccov'):
-			continue
-		test_name = suite_name_from_task_name(task['task']['metadata']['name'])
+		test_name = task['task']['metadata']['name']
+		if not use_task_name:
+			test_name = suite_name_from_task_name(task['task']['metadata']['name'])
 
 		# If all tests weren't asked for but this test is
 		# asked for, set the flag.
@@ -183,6 +185,7 @@ def artifact_downloader(
 		   (test_name in test_suites or (pattern_match_suites and pattern_find(test_name, test_suites))):
 			download_this_task = True
 
+		test_name = test_name.replace('/', '-')
 		if all_tasks or download_this_task:
 			# Make directories for this task
 			head_rev = task['task']['payload']['env']['GECKO_HEAD_REV']
@@ -212,11 +215,12 @@ def artifact_downloader(
 
 			for artifact in artifacts:
 				if artifact_to_get in artifact['name']:
-					filen = download_artifact(task_id, artifact, downloads_dir)
+					log.info('\nOn artifact (%s):' % str(sum([v+1 for k,v in task_counters.items()])))
+					fpath = download_artifact(task_id, artifact, downloads_dir)
 					if artifact_to_get == 'grcov' or unzip_artifact:
-						unzip_file(filen, data_dir, task_counters[test_name])
+						unzip_file(fpath, data_dir, task_counters[test_name])
 					else:
-						move_file(filen, data_dir, task_counters[test_name])
+						move_file(fpath, data_dir, task_counters[test_name])
 					taskid_to_file_map[task_id] = os.path.join(
 						data_dir, str(task_counters[test_name])
 					)
@@ -241,6 +245,8 @@ def run(args=None, config=None):
 	artifact_to_get = config['artifact_to_get']
 	unzip_artifact = config['unzip_artifact']
 	pattern_match_suites = config['pattern_match_suites']
+	use_task_name = config['use_task_name'] if 'use_task_name' in config else True
+	download_failures = config['download_failures'] if config['download_failures'] is not None else False
 	outputdir = config['outputdir'] if config['outputdir'] is not None else os.getcwd()
 
 	normed_outputdir = os.path.normpath(outputdir)
@@ -251,7 +257,8 @@ def run(args=None, config=None):
 	task_dir, head_rev = artifact_downloader(
 		task_group_id, output_dir=normed_outputdir, test_suites=test_suites,
 		artifact_to_get=artifact_to_get, unzip_artifact=unzip_artifact,
-		pattern_match_suites=pattern_match_suites
+		pattern_match_suites=pattern_match_suites, download_failures=download_failures,
+		use_task_name=use_task_name
 	)
 
 	return task_dir

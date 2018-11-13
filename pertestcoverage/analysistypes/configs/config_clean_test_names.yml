@@ -1,0 +1,10 @@
+outputdir: '/home/sparky/Documents/tmp/'
+ignore-wpt-existence: True
+
+get-csv-position: 3
+test-files: [
+  '/home/sparky/Downloads/allreftestsfixed_by_commit_info_linux64.csv',
+  '/home/sparky/Downloads/allwptfixed_by_commit_info_linux64.csv'
+]
+
+test-names: []
