@@ -3,7 +3,7 @@ startrev: "981bcfe73738" #"7ac88abc3c57" #"981bcfe73738" #"d03b538b6b41" #"d2218
 outputdir: "/home/sparky/Documents/tmp/"
 analysisbranch: "mozilla-inbound"
 analyze_all: False
-runname: 'Analysis 10 (Lsqf2ezUQWifS0okmF1Jqw) - linux64 all tests, yes conditions'
+runname: 'Analysis 7 (NKACHvgaT0uV-VESWcvVdg / MtGKSrItQgqQMugHdE7rJg / VmbrLC-2Rg2TFzzwCfVfqA) - windows10/linux64 mochi/xpc, yes conditions'
 
 # For each branch in the given changesets, specify the HG repository i.e. mozilla-inbound -> integration/mozilla-inbound
 hg_analysisbranch:
@@ -14,7 +14,7 @@ hg_analysisbranch:
 # with the same format as sample_csv.csv:
 #   (fixed_by_revision, job_name, repo, test_fixed)
 changesets: [
-    '/home/sparky/Downloads/all-linux64-fixed_by_commit_492.csv'
+    '/home/sparky/Downloads/allmochitestnxpcshellfixedbycommit_windows1064.csv'
 ]
 
 tc_tasks_rev_n_branch: [
@@ -36,12 +36,12 @@ pertest_rawdata_folders:
     #  type: "pertestreport"
     #  chrome-map: "/home/sparky/Documents/tmp/YF3lZiRXT6y9kzw_SvYsLQ/chrome-map.json"
     # Analysis 8 & 9 - wpt reftests
-    #- location: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/"
-    #  type: "pertestreport"
-    #  chrome-map: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/chrome-map.json"
-    #- location: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/"
-    #  type: "pertestreport"
-    #  chrome-map: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/chrome-map.json"
+    - location: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/chrome-map.json"
+    - location: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/chrome-map.json"
     # Analysis 7 - mochitest n xpcshell
     - location: "/home/sparky/Documents/tmp/VmbrLC-2Rg2TFzzwCfVfqA/"
       type: "pertestreport"

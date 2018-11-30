@@ -1,8 +1,17 @@
+#!/usr/bin/python
+# encoding=utf8
+
+
+from __future__ import print_function, absolute_import
+
 import os
+import gzip
 import json
 import copy
 import urllib.request
 import logging
+
+from . import timeout
 
 RETRY = {"times": 3, "sleep": 5}
 LEVEL_MAP = {
@@ -57,8 +66,10 @@ def file_in_type(file, filetype):
 	return False
 
 
-def open_json(path, filename):
-	with open(os.path.join(path, filename), 'r') as f:
+def open_json(path, filename, fullpath=None):
+	if fullpath == None:
+		fullpath = os.path.join(path, filename)
+	with open(fullpath, 'r') as f:
 		data = json.load(f)
 	return data
 
@@ -69,18 +80,29 @@ def save_json(data, path, filename):
 
 
 def chrome_mapping_rewrite(srcfiles, chrome_map_path, chrome_map_name=None):
-	if not chrome_map_name:
-		chrome_map_path, chrome_map_name = os.path.split(chrome_map_path)
+	try:
+		if not chrome_map_name:
+			chrome_map_path, chrome_map_name = os.path.split(chrome_map_path)
 
-	with open(os.path.join(chrome_map_path, chrome_map_name)) as f:
-		chrome_mapping = json.load(f)[0]
+		try:
+			with open(os.path.join(chrome_map_path, chrome_map_name), 'r', encoding='utf-8') as f:
+				chrome_mapping = json.load(f)[0]
+		except:
+			f = gzip.open(os.path.join(chrome_map_path, chrome_map_name), 'rb')
+			data = f.read()
+			chrome_mapping = json.loads(data)[0]
+			f.close()
 
-	new_srcfiles = {}
-	for srcfile in srcfiles:
-		new_name = srcfile
-		if srcfile in chrome_mapping:
-			new_name = chrome_mapping[srcfile]
-		new_srcfiles[new_name] = srcfiles[srcfile]
+		new_srcfiles = {}
+		for srcfile in srcfiles:
+			new_name = srcfile
+			if srcfile in chrome_mapping:
+				new_name = chrome_mapping[srcfile]
+			new_srcfiles[new_name] = srcfiles[srcfile]
+	except Exception as e:
+		log.info('Chrome mapping failed.')
+		log.info('Exception: %s' % str(e))
+		return srcfiles
 
 	return new_srcfiles
 
@@ -251,8 +273,10 @@ def get_all_pertest_data(pertestdir='', chrome_map_path=''):
 				)
 			fmtd_test_dict['location'] = os.path.join(root, file)
 			json_data.append(fmtd_test_dict)
-		except KeyError as e:
+		except Exception as e:
 			log.info("Bad JSON found: " + str(os.path.join(root,file)))
+			log.info("Exception: %s" % str(e))
+			continue
 	return json_data
 
 
@@ -363,16 +387,15 @@ def format_per_test_scored_file(data, return_test_name=False, get_hits=False,
 	return fmtd_per_test_data
 
 
-
 def get_per_test_file(path, filename, get_hits=False, return_test_name=False):
-	with open(os.path.join(path, filename)) as f:
+	with open(os.path.join(path, filename), 'r') as f:
 		data = json.load(f)
 	if type(data) != dict:
 		raise KeyError("Not a dictionary JSON.")
+
 	return format_per_test_file(
 		data, return_test_name=return_test_name, get_hits=get_hits
 	)
-
 
 
 def format_per_test_file(data, get_hits=False, return_test_name=False):
@@ -388,11 +411,12 @@ def format_per_test_file(data, get_hits=False, return_test_name=False):
 
 		fmtd_per_test_data[cov['name']] = new_coverage
 	if return_test_name:
-		return {
+		tmp = {
 			'test': data['test'],
 			'suite': data['suite'],
 			'source_files': fmtd_per_test_data
 		}
+		return tmp
 	return fmtd_per_test_data
 
 
@@ -442,10 +466,34 @@ def get_ad_jsdcov_file(taskID):
 	)
 
 
+def rununtiltimeout(func):
+	retries = 0
+	response = None
+
+	while retries < RETRY['times']:
+		try:
+			response = func()
+			break
+		except:
+			if retries < RETRY['times']:
+				retries += 1
+				continue
+			else:
+				raise
+
+	return response
+
+
 def get_http_json(url):
 	data = None
-	with urllib.request.urlopen(url) as urllib_url:
-		data = json.loads(urllib_url.read().decode())
+
+	@timeout(120)
+	def get_data():
+		with urllib.request.urlopen(url) as urllib_url:
+			data = json.loads(urllib_url.read().decode())
+		return data
+
+	data = rununtiltimeout(get_data)
 	return data
 
 
@@ -453,16 +501,21 @@ def query_activedata(query_json, debug=False, active_data_url=None):
 	if not active_data_url:
 		active_data_url = "http://activedata.allizom.org/query"
 
-	req = urllib.request.Request(active_data_url)
-	req.add_header('Content-Type', 'application/json')
-	jsondata = json.dumps(query_json)
+	@timeout(120)
+	def get_data():
+		req = urllib.request.Request(active_data_url)
+		req.add_header('Content-Type', 'application/json')
+		jsondata = json.dumps(query_json)
 
-	jsondataasbytes = jsondata.encode('utf-8')
-	req.add_header('Content-Length', len(jsondataasbytes))
+		jsondataasbytes = jsondata.encode('utf-8')
+		req.add_header('Content-Length', len(jsondataasbytes))
 
-	log.debug("Querying Active-data with: " + str(query_json))
-	response = urllib.request.urlopen(req, jsondataasbytes)
-	log.debug("Status:" + str(response.getcode()))
+		log.debug("Querying Active-data with: " + str(query_json))
+		response = urllib.request.urlopen(req, jsondataasbytes)
+		log.debug("Status:" + str(response.getcode()))
+		return response
+
+	response = rununtiltimeout(get_data)
 
 	data = json.loads(response.read().decode('utf8').replace("'", '"'))['data']
 	return data

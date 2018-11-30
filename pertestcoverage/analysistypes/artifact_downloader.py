@@ -7,6 +7,7 @@ import logging
 
 from ..cli import AnalysisParser
 from ..utils.cocoload import pattern_find
+from ..utils import timeout
 
 try:
 	from urllib.parse import urlencode
@@ -17,6 +18,8 @@ except ImportError:
 
 log = logging.getLogger('pertestcoverage')
 
+MAXRETRY = 10
+URLRETRIEVE_TIMEOUT = 120
 
 # Use this program to dowwnload, extract, and distribute GRCOV
 # files that are to be used for the variability analysis.
@@ -58,9 +61,7 @@ def artifact_downloader_parser():
 def get_json(url, params=None):
 	if params is not None:
 		url += '?' + urlencode(params)
-
 	r = urlopen(url).read().decode('utf-8')
-
 	return json.loads(r)
 
 
@@ -88,10 +89,29 @@ def get_tasks_in_group(group_id):
 	return tasks
 
 
+
 def download_artifact(task_id, artifact, output_dir):
 	fname = os.path.join(output_dir, task_id + '_' + os.path.basename(artifact['name']))
 	log.info('Downloading ' + artifact['name'] + ' to: ' + fname)
-	urlretrieve('https://queue.taskcluster.net/v1/task/' + task_id + '/artifacts/' + artifact['name'], fname)
+
+	@timeout(URLRETRIEVE_TIMEOUT)
+	def get_data():
+		data = urlretrieve('https://queue.taskcluster.net/v1/task/' + task_id + '/artifacts/' + artifact['name'], fname)
+		return data
+
+	retries = 0
+	while retries < MAXRETRY:
+		try:
+			data = get_data()
+			break
+		except:
+			if retries < MAXRETRY:
+				log.info("Retrying...")
+				retries += 1
+				continue
+			else:
+				raise
+
 	return fname
 # Marco's functions end #
 
@@ -134,7 +154,8 @@ def artifact_downloader(
 		artifact_to_get='grcov',
 		unzip_artifact=True,
 		pattern_match_suites=False,
-		use_task_name=True
+		use_task_name=True,
+		task_id=''
 	):
 
 	head_rev = ''
@@ -143,6 +164,9 @@ def artifact_downloader(
 		all_tasks = True
 
 	task_ids = []
+	if task_id:
+		task_group_id = str(get_task_details(task_id)['taskGroupId'])
+
 	tasks = get_tasks_in_group(task_group_id)
 
 	# Make the data directories
@@ -203,22 +227,27 @@ def artifact_downloader(
 			task_id = task['status']['taskId']
 			artifacts = get_task_artifacts(task_id)
 
-			failed = None
-			for artifact in artifacts:
-				if 'log_error' in artifact['name']:
-					filen = download_artifact(task_id, artifact, downloads_dir)
-					if os.stat(filen).st_size != 0:
-						failed = artifact['name']
-			if (failed is not None) and (not download_failures):
-				log.info('Skipping a failed test: ' + failed)
-				continue
+			if not download_failures:
+				failed = None
+				for artifact in artifacts:
+					if 'log_error' in artifact['name']:
+						filen = download_artifact(task_id, artifact, downloads_dir)
+						if os.stat(filen).st_size != 0:
+							failed = artifact['name']
+				if failed is not None:
+					log.info('Skipping a failed test: ' + failed)
+					continue
 
 			for artifact in artifacts:
 				if artifact_to_get in artifact['name']:
 					log.info('\nOn artifact (%s):' % str(sum([v+1 for k,v in task_counters.items()])))
 					fpath = download_artifact(task_id, artifact, downloads_dir)
 					if artifact_to_get == 'grcov' or unzip_artifact:
-						unzip_file(fpath, data_dir, task_counters[test_name])
+						try:
+							unzip_file(fpath, data_dir, task_counters[test_name])
+						except:
+							log.info("Could not unzip file. Moving it instead.")
+							move_file(fpath, data_dir, task_counters[test_name])
 					else:
 						move_file(fpath, data_dir, task_counters[test_name])
 					taskid_to_file_map[task_id] = os.path.join(
@@ -240,7 +269,8 @@ def run(args=None, config=None):
 	if not config:
 		raise Exception("Missing `config` dict argument.")
 
-	task_group_id = config['task_group_id']
+	task_group_id = config['task_group_id'] if 'task_group_id' in config else None
+	task_id = config['task_id'] if 'task_id' in config else None
 	test_suites = config['test_suites_list']
 	artifact_to_get = config['artifact_to_get']
 	unzip_artifact = config['unzip_artifact']
@@ -248,6 +278,9 @@ def run(args=None, config=None):
 	use_task_name = config['use_task_name'] if 'use_task_name' in config else True
 	download_failures = config['download_failures'] if config['download_failures'] is not None else False
 	outputdir = config['outputdir'] if config['outputdir'] is not None else os.getcwd()
+
+	if 'timeout' in config:
+		URLRETRIEVE_TIMEOUT = config['timeout']
 
 	normed_outputdir = os.path.normpath(outputdir)
 	if not os.path.isdir(normed_outputdir):
@@ -258,7 +291,7 @@ def run(args=None, config=None):
 		task_group_id, output_dir=normed_outputdir, test_suites=test_suites,
 		artifact_to_get=artifact_to_get, unzip_artifact=unzip_artifact,
 		pattern_match_suites=pattern_match_suites, download_failures=download_failures,
-		use_task_name=use_task_name
+		use_task_name=use_task_name, task_id=task_id
 	)
 
 	return task_dir

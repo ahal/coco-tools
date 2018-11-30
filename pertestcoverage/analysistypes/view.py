@@ -143,8 +143,9 @@ def view(
 					ignore_uniques=ignore_uniques,
 					chrome_map=chrome_map
 				)
-			except KeyError as e:
+			except Exception as e:
 				log.info("Bad JSON found: " + str(os.path.join(root,file)))
+				log.info("Exception: %s" % str(e))
 				continue
 
 			total_datapoints += 1

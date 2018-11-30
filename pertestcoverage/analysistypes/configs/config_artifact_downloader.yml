@@ -1,7 +1,7 @@
 outputdir: "/home/sparky/Documents/tmp/"
-task_group_id: "PMfgzRH9TOaSmLqBWPFOCg"
-test_suites_list: ["build"]
+task_id: "QueDApG0QkiryJCLs5IKBg" # Get's the group from task details
+test_suites_list: ["test-coverage"]
 pattern_match_suites: True
-artifact_to_get: "chrome-map"
-unzip_artifact: False
+artifact_to_get: "per-test"
+unzip_artifact: True
 download_failures: True

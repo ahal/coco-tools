@@ -1,0 +1,14 @@
+visualize_all: True
+
+file_matchers: [
+  'wpt'
+]
+
+dirs: ['/home/sparky/Documents/tmp/tmp2']
+categories: [
+  'failed-changes',
+  'js-changes',
+  'c-changes',
+  'unlreated-changes',
+  'test-changes'
+]

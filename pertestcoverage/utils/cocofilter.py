@@ -509,6 +509,15 @@ def clean_test_name(test_name, mozcentral_path=None, ignore_wpt_existence=False)
 	reftest_prefix = 'file:///builds/worker/workspace/build/tests/reftest/tests/'
 	if test_name.startswith(reftest_prefix):
 		return test_name.replace(reftest_prefix, '')
+	if '/reftest/tests/' in test_name:
+		return test_name.split('/reftest/tests/')[-1]
+
+	if test_name.startswith('http://localhost:'):
+		test_name.replace('http://localhost:', '')
+		test_name = os.path.join(
+			'dom/media/test', '/'.join(test_name.split('/')[3:])
+		)
+		return test_name
 
 	def replace_wpt_mozilla_path(test_path):
 		if '_mozilla' in test_path:
@@ -516,28 +525,53 @@ def clean_test_name(test_name, mozcentral_path=None, ignore_wpt_existence=False)
 		return test_path
 
 	wpt_prefix = 'testing/web-platform/tests'
+	test_name = os.path.join(wpt_prefix, test_name)
+	test_name = replace_wpt_mozilla_path(test_name)
+
+	replace = False
+	if len(test_name.split('idlharness')) > 1:
+		if len(test_name.split('.any.')) > 1 or len(test_name.split('.window.')) > 1:
+			replace = True
+
+	if len(test_name.split('bailout-exception-vs-return-origin.sub.window')) > 1:
+		replace = True
+
+	if len(test_name.split('stream-safe-creation.any')) > 1:
+		replace = True
+
+	if replace:
+		test_name = test_name.replace('.html', '.js')
+		for dyn in ['', '.serviceworker', '.sharedworker', '.worker', '.https']:
+			test_name = test_name.replace(dyn, '')
+			if mozcentral_path:
+				if os.path.exists(os.path.join(mozcentral_path, test_name)):
+					break
+
 	if mozcentral_path:
-		new_path = os.path.join(
-			os.path.abspath(mozcentral_path), wpt_prefix, test_name
-		)
-		test_name = replace_wpt_mozilla_path(test_name)
-		if os.path.exists(new_path):
-			test_name = os.path.join(wpt_prefix, test_name)
-	if ignore_wpt_existence:
-		test_name = os.path.join(wpt_prefix, test_name)
-		test_name = replace_wpt_mozilla_path(test_name)
+		if not os.path.exists(os.path.join(mozcentral_path, test_name)):
+			log.info("missing: %s" % test_name)
 
 	return test_name
 
 
-def clean_test_names(test_names, mozcentral_path=None, ignore_wpt_existence=False):
+def clean_test_names(test_names, mozcentral_path=None, ignore_wpt_existence=False, suites=None):
 	mapping = {}
-	for test_name in test_names:
+
+	for count, test_name in enumerate(test_names):
+		new_name = test_name
+
+		if suites:
+			suite = suites[count]
+			if ('mochi' in suite or 'xpcshell' in suite):
+				mapping[test_name] = new_name
+				continue
+
 		new_name = clean_test_name(
 			test_name,
 			mozcentral_path=mozcentral_path,
 			ignore_wpt_existence=ignore_wpt_existence
 		)
 		mapping[test_name] = new_name
+
 	return mapping.values(), mapping
 
