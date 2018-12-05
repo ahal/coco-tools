@@ -86,6 +86,7 @@ def run(args=None, config=None):
 	mozcentral_path = config['mozcentral_path'] if 'mozcentral_path' in config else None
 	runname = config['runname'] if 'runname' in config else None
 	include_guaranteed = config['include_guaranteed'] if 'include_guaranteed' in  config else False
+	use_active_data = config['use_active_data'] if 'use_active_data' in config else False
 
 	changesets = []
 	for csets_csv_path in changesets_list:
@@ -104,7 +105,7 @@ def run(args=None, config=None):
 		"where":{"and":[
 			{"in":{"repo.changeset.id12":[rev for rev, branch in tc_tasks_rev_n_branch]}},
 			{"eq":{"repo.branch.name":"try"}},
-			{"eq":{"test.name":""}}
+			{"regexp":{"test.name":""}}
 		]},
 		"limit":1,
 		"groupby":[{"name":"source","value":"source.file.name"}]
@@ -132,13 +133,14 @@ def run(args=None, config=None):
 	}
 
 	jsondatalist = []
-	for location_entry in pertest_rawdata_folders:
-		if location_entry['type'] == TYPE_PERTEST:
-			print('here')
-			jsondatalist.extend(get_all_pertest_data(location_entry['location'], chrome_map_path=location_entry['chrome-map']))
-		elif location_entry['type'] == TYPE_STDPTC:
-			print('here2')
-			jsondatalist.extend(get_all_stdptc_data(location_entry['location'], chrome_map_path=location_entry['chrome-map']))
+	if not use_active_data:
+		for location_entry in pertest_rawdata_folders:
+			if location_entry['type'] == TYPE_PERTEST:
+				print('here')
+				jsondatalist.extend(get_all_pertest_data(location_entry['location'], chrome_map_path=location_entry['chrome-map']))
+			elif location_entry['type'] == TYPE_STDPTC:
+				print('here2')
+				jsondatalist.extend(get_all_stdptc_data(location_entry['location'], chrome_map_path=location_entry['chrome-map']))
 
 	all_failed_ptc_tests = get_coverage_tests(tc_tasks_rev_n_branch, get_failed=True)
 
@@ -170,12 +172,20 @@ def run(args=None, config=None):
 		else:
 			cov_exists, status, code, changeset, suite, repo, test_fixed, _ = tp
 
-		if 'mochitest' in suite or 'xpcshell' in suite:
+		test_fixed = test_fixed.split('ini:')[-1]
+		if 'mochitest' not in suite and 'xpcshell' not in suite:
 			test_fixed = format_testname(test_fixed)
-		else:
-			test_fixed = test_fixed.split('ini:')[-1]
 		tmp_tests.append(test_fixed)
-	tests_with_no_data = get_tests_with_no_data(jsondatalist, tmp_tests)
+
+	tests_with_no_data = []
+	if not use_active_data:
+		tests_with_no_data = get_tests_with_no_data(jsondatalist, tmp_tests)
+	else:
+		for test_matcher in tmp_tests:
+			coverage_query['where']['and'][2]['regexp']['test.name'] = ".*" + test_matcher.replace('\\', '/') + '.*'
+			coverage_data = query_activedata(coverage_query)
+			if len(coverage_data) == 0:
+				tests_with_no_data.append(test_matcher)
 	log.info("Number of tests with no data: %s" % str(len(tests_with_no_data)))
 	log.info("Number of tests in total: %s" % str(len(tmp_tests)))
 
@@ -278,27 +288,29 @@ def run(args=None, config=None):
 
 		all_tests = []
 		failed_tests = []
-
 		try:
-			failed_tests = {}
-			#failed_tests = query_activedata(failed_tests_query_json)
+			failed_tests = query_activedata(failed_tests_query_json)
 		except Exception as e:
-			log.info("Error running query: " + str(failed_tests_query_json))
+			log.info("Error running query: " + str(test_coverage_query_json))
 
-		all_tests = get_coverage_tests_from_jsondatalist(jsondatalist, get_files=files_modified)
+		if use_active_data:
+			try:
+				all_tests = get_coverage_tests(tc_tasks_rev_n_branch, get_files=files_modified)
+			except Exception as e:
+				log.info("Error running query: " + str(test_coverage_query_json))
+		else:
+			all_tests = get_coverage_tests_from_jsondatalist(jsondatalist, get_files=files_modified)
 
 		all_failed_tests = []
 		if 'test' in failed_tests:
 			all_failed_tests = [test for test in failed_tests['test']]
 
-		if test_fixed in all_failed_tests:
+		if pattern_find(test_fixed, all_failed_tests):
 			log.info("Test was not completely fixed by commit: " + str(test_fixed))
 			continue
-		else:
-			log.info("Test was truly fixed. Failed tests: " + str(all_failed_tests))
 
-		#all_tests_not_run = list(set([test_fixed]) - set(all_tests))
-		# Modified for analysis 4
+		log.info("Test was truly fixed. Failed tests: " + str(all_failed_tests))
+
 		found = False
 		all_tests_not_run = []
 		for test in all_tests:
@@ -336,11 +348,12 @@ def run(args=None, config=None):
 			'testsnotrun': all_tests_not_run,
 		}
 
-		for test in all_tests_not_run:
-			coverage_data = filter_per_test_tests(jsondatalist, test)
-			if not coverage_data:
-				tests_for_changeset[changeset_name]['reasons_not_run'] =  'no_coverage_json_for_test'
-  
+		if use_active_data:
+			for test in all_tests_not_run:
+				if test in all_failed_ptc_tests:
+					tests_for_changeset[changeset_name]['reasons_not_run'] = 'failed_test'
+					continue
+
 		log.info("Reason not run (if any): " + tests_for_changeset[changeset_name]['reasons_not_run'])
 
 		all_changesets.append(changeset)

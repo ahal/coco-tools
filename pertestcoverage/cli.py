@@ -79,7 +79,7 @@ ARGUMENT_GROUPS = {
 		  'dest': 'config',
 		  'help': "Configuration YAML for analysis types.",
 		  }],
-	]
+	],
 	'downloader': [
 		[['--task-id'],
 		 {'required': False,
@@ -90,8 +90,8 @@ ARGUMENT_GROUPS = {
 		[['--artifact'],
 		 {'required': False,
 		  'dest': 'artifacts',
-		  'default': None
-		  'type': '+'
+		  'default': None,
+		  'type': '+',
 		  'help': "Patterns for artifacts to download.",
 		  }],
 	]

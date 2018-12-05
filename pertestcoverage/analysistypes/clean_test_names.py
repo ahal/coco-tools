@@ -146,14 +146,16 @@ def run(args=None, config=None):
 			new_mapping = {}
 			for oldtest, newtest in mapping.items():
 				new_mapping[oldtest] = newtest.split('ini:')[-1]
-			cleaned_test_names = new_mapping.values()
 			mapping = new_mapping
 	else:
 		# Not much to do for other suites,
 		# just need to remove .ini prefixes.
 		for test in test_names:
 			mapping[test] = test.split('ini:')[-1]
-		cleaned_test_names = mapping.values()
+	
+	cleaned_test_names = [t.replace('\\', '/') for t in cleaned_test_names]
+
+	cleaned_test_names = mapping.values()
 
 	if 'show_output' in config and config['show_output']:
 		log.info('\nMapping (old -> new):')
