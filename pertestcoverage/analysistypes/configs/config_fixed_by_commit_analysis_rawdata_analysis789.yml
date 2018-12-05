@@ -1,0 +1,68 @@
+numpatches: 1000
+startrev: "981bcfe73738" #"7ac88abc3c57" #"981bcfe73738" #"d03b538b6b41" #"d2218beee052" # #"48cc597db296"
+outputdir: "/home/sparky/Documents/tmp/"
+analysisbranch: "mozilla-inbound"
+analyze_all: False
+runname: 'Analysis 7 (NKACHvgaT0uV-VESWcvVdg / MtGKSrItQgqQMugHdE7rJg / VmbrLC-2Rg2TFzzwCfVfqA) - windows10/linux64 mochi/xpc, yes conditions'
+
+# For each branch in the given changesets, specify the HG repository i.e. mozilla-inbound -> integration/mozilla-inbound
+hg_analysisbranch:
+    mozilla-inbound: "integration/mozilla-inbound" # This may sometimes be different from `analysisbranch`
+    autoland: "integration/autoland"
+
+# This must be a list of CSV files
+# with the same format as sample_csv.csv:
+#   (fixed_by_revision, job_name, repo, test_fixed)
+changesets: [
+    '/home/sparky/Downloads/allmochitestnxpcshellfixedbycommit_windows1064.csv'
+]
+
+tc_tasks_rev_n_branch: [
+    ["c2c4f907c230", "try"],
+]
+
+pertest_rawdata_folders:
+    # Analysis 5 & 6 - wpt reftests
+    #- location: "/home/sparky/Documents/tmp/Y57bdb1ATgiaj2x6kT1IKg/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/Y57bdb1ATgiaj2x6kT1IKg/chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/VNIFcwmfTyqypT-88lkKew/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/VNIFcwmfTyqypT-88lkKew/chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/PMfgzRH9TOaSmLqBWPFOCg/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/PMfgzRH9TOaSmLqBWPFOCg/chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/YF3lZiRXT6y9kzw_SvYsLQ/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/YF3lZiRXT6y9kzw_SvYsLQ/chrome-map.json"
+    # Analysis 8 & 9 - wpt reftests
+    #- location: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/chrome-map.json"
+    # Analysis 7 - mochitest n xpcshell
+    - location: "/home/sparky/Documents/tmp/VmbrLC-2Rg2TFzzwCfVfqA/"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/VmbrLC-2Rg2TFzzwCfVfqA/chrome-map.json"
+    - location: "/home/sparky/Documents/tmp/MtGKSrItQgqQMugHdE7rJg/"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/MtGKSrItQgqQMugHdE7rJg/chrome-map.json"
+    # Analysis 7 - linux mochitest n xpcshell
+    - location: "/home/sparky/Documents/tmp/NKACHvgaT0uV-VESWcvVdg/"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/NKACHvgaT0uV-VESWcvVdg/chrome-map.json"
+    # Analysis 10 - all linux64
+    #- location: "/home/sparky/Documents/tmp/Lsqf2ezUQWifS0okmF1Jqw/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/Lsqf2ezUQWifS0okmF1Jqw/chrome-map.json"   
+    # Other analysis
+    #- location: "/home/sparky/Documents/tmp/Upmd38GnST-htTHj5gHIJw/"
+    #  type: "std-ptc-format"
+    #  chrome-map: "/home/sparky/Documents/tmp/Upmd38GnST-htTHj5gHIJw/3/build-linux64-ccov-debug/chrome-map_data/0/OpoO11DDTAKJMWnRsGyY1g_chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/Oa0bVdpcT_qtfjqPvupAMQ/"
+    #  type: "std-ptc-format"
+    #  chrome-map: "/home/sparky/Documents/tmp/Oa0bVdpcT_qtfjqPvupAMQ/3/build-linux64-ccov-debug/downloads/PgWCYBZqQhWNVPrklDbeCw_chrome-map.json"
+
+mozcentral_path: "/home/sparky/mozilla-source/mozilla-central/"

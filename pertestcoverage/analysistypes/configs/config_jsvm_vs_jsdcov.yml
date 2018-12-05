@@ -1,0 +1,15 @@
+level: "file"
+merge_line_diffs: False
+
+jsvm_data: "C:/Users/greg/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/jsvm_data/"
+jsdcov_data: "C:/Users/greg/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/jsdcov_data/"
+baseline_jsvm_data: C:/Users/greg/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/baseline_data/jsvm/"
+baseline_jsvdcov_data: C:/Users/greg/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/baseline_data/jsdcov/"
+
+jsvm_taskid: "EgaYFxonS-CtsANtR7qeag" #"dbNp9shvQUiF7LQUfUvu5Q" #"LbwjbbYLSCCIg4ZRw3MK0w" #"T6J3zEIIRoC-zUMKMER9xQ" #"EgaYFxonS-CtsANtR7qeag"
+jsvm_baseline_taskid: "DWiQOwvMQ9iBRw0SjMnwdg"
+jsdcov_taskid: "Uh0v_-MLSsy5zJvurKHelQ"
+jsdcov_baseline_taskid: "J6-a3OXaSO-pQKzATy6YIg"
+
+chrome_map: "/home/sparky/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/chrome-map.json"
+outputdir : "/home/sparky/Documents/mozwork/coco-tools/jsvm_vs_jsdcov_2/results/"

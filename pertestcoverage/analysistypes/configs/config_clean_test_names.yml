@@ -1,0 +1,13 @@
+outputdir: '/home/sparky/Documents/tmp/'
+ignore-wpt-existence: True
+mozcentral-path: '/home/sparky/mozilla-source/mozilla-central'
+clean-type: 'mixed' # mixed, mochitest, or wpt
+
+get-csv-position: 3
+test-files: [
+  '/home/sparky/Downloads/all-platforms-fixed_by_commit_764.csv',
+]
+
+outputteststoverify: True
+show_output: False
+test-names: []
