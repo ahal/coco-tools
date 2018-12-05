@@ -109,6 +109,8 @@ def run(args=None, config=None):
 					   config['clean-type'] not in CLEAN_TYPES else \
 				 config['clean-type']
 
+	
+
 	test_names = []
 	suites = []
 	if 'test-names' in config:

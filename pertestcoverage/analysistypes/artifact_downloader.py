@@ -6,7 +6,7 @@ import shutil
 import logging
 
 from ..cli import AnalysisParser
-from ..utils.cocoload import pattern_find
+from ..utils.cocoload import pattern_find, rununtiltimeout
 from ..utils import timeout
 
 try:
@@ -58,10 +58,15 @@ def artifact_downloader_parser():
 
 
 # Marco's functions, very useful.
-def get_json(url, params=None):
-	if params is not None:
-		url += '?' + urlencode(params)
-	r = urlopen(url).read().decode('utf-8')
+def get_json(url=None, params=None):
+	@timeout(120)
+	def get_data(url=None, params=None, **kwargs):
+		if params is not None:
+			url += '?' + urlencode(params)
+		r = urlopen(url).read()
+		return r
+
+	r = rununtiltimeout(get_data, **locals()).decode('utf-8')
 	return json.loads(r)
 
 
@@ -151,7 +156,7 @@ def artifact_downloader(
 		output_dir=os.getcwd(),
 		test_suites=[],
 		download_failures=False,
-		artifact_to_get='grcov',
+		artifact_to_get=['grcov'],
 		unzip_artifact=True,
 		pattern_match_suites=False,
 		use_task_name=True,
@@ -162,6 +167,8 @@ def artifact_downloader(
 	all_tasks = False
 	if 'all' in test_suites:
 		all_tasks = True
+	if type(artifact_to_get) != list:
+		artifact_to_get = [artifact_to_get]
 
 	task_ids = []
 	if task_id:
@@ -215,7 +222,7 @@ def artifact_downloader(
 			head_rev = task['task']['payload']['env']['GECKO_HEAD_REV']
 			grcov_dir = os.path.join(output_dir, test_name)
 			downloads_dir = os.path.join(os.path.join(grcov_dir, 'downloads'))
-			data_dir = os.path.join(os.path.join(grcov_dir, (artifact_to_get.replace(".", "")) + '_data'))
+			data_dir = os.path.join(os.path.join(grcov_dir, 'data'))
 
 			if test_name not in task_counters:
 				os.mkdir(grcov_dir)
@@ -239,10 +246,10 @@ def artifact_downloader(
 					continue
 
 			for artifact in artifacts:
-				if artifact_to_get in artifact['name']:
+				if pattern_find(artifact['name'], artifact_to_get):
 					log.info('\nOn artifact (%s):' % str(sum([v+1 for k,v in task_counters.items()])))
 					fpath = download_artifact(task_id, artifact, downloads_dir)
-					if artifact_to_get == 'grcov' or unzip_artifact:
+					if 'grcov' in artifact_to_get or unzip_artifact:
 						try:
 							unzip_file(fpath, data_dir, task_counters[test_name])
 						except:
@@ -263,14 +270,14 @@ def artifact_downloader(
 
 def run(args=None, config=None):
 	if args:
-		parser = AnalysisParser('config')
+		parser = AnalysisParser('config', 'downloader')
 		args = parser.parse_analysis_args(args)
 		config = args.config
 	if not config:
 		raise Exception("Missing `config` dict argument.")
 
-	task_group_id = config['task_group_id'] if 'task_group_id' in config else None
-	task_id = config['task_id'] if 'task_id' in config else None
+	task_group_id = config['task_group_id'] if 'task_group_id' in config else args.task_id
+	task_id = config['task_id'] if 'task_id' in config else args.task_id
 	test_suites = config['test_suites_list']
 	artifact_to_get = config['artifact_to_get']
 	unzip_artifact = config['unzip_artifact']
@@ -278,6 +285,11 @@ def run(args=None, config=None):
 	use_task_name = config['use_task_name'] if 'use_task_name' in config else True
 	download_failures = config['download_failures'] if config['download_failures'] is not None else False
 	outputdir = config['outputdir'] if config['outputdir'] is not None else os.getcwd()
+
+	if args.artifacts:
+		if type(artifact_to_get) != list:
+			artifact_to_get = [artifact_to_get]
+		artifact_to_get.append(args.artifacts)
 
 	if 'timeout' in config:
 		URLRETRIEVE_TIMEOUT = config['timeout']

@@ -16,35 +16,39 @@ All `ptc` analysis types take a YAML config to make it simpler to configure the 
 
 On linux you may have to do the following if you have errors with matplotlib `sudo apt-get install python3-tk`
 
+# Coverage Scheduling Analysis Instructions 
 
-# OLD USAGE BELOW
+These instructions are applicable to the analysis types (the active data version can skip step 5: fixed_by_commit_analysis_rawdata, fixed_by_commit_analysis
 
-## Usage example for getting per-test-coverage data:
+Steps 1-4 may be obsolete eventually if a `mach` tool could be built. i.e. (1) Query redash DB - requires keys, (2) Clean test-names, then (3) Run test-coverage on cleaned test names.
+
+1. The first thing to do is to obtain a list of `test_fixed` entries from the `treeherder` redash database. The query must produce a CSV file with exactly 4 columns (changeset, task-name/suite, repo, test_fixed). A sample query can be found at `pertestcoverage/analysistypes/configs/querysample.txt`.
+
+2. Modify `pertestcoverage/analysistypes/configs/config_clean_test_names.yml` to suit your needs: 1) Add the CSV files from (1) to `test-files`, 2) Set the output diretory, and 3) Set `outputteststoverify: True`. Then run (from `coco-tools/pertestcoverage/nalaysistypes/configs/` dir in these examples):
 ```
-py utils\artifact_downloader.py --task-group-id DAbkkBV-RjadEQAtDgjTHA --test-suites-list test-coverage-e10s --artifact-to-get per-test-coverage --unzip-artifact --output ~\per-test-coverage-reports
-```
-
-This will download and unzip all coverage artifacts into the given directory so that it can be used in the tool below. Test suites must contian chunk numbers if they exist, retriggers will all be downloaded.
-
-
-## Usage example for pertestcoverage_view:
-```
-py pertestcoverage_view.py ~\per-test-coverage-reports\DAbkkBV-RjadEQAtDgjTHA --tests dom/tests/mochitest/bugs/test_bug739038.html -s nsAppRunner.cpp
+ptc clean_test_names -c config_clean_test_names.yml
 ```
 
-This tool will search through the given directory for jsons and find the ones that have the given tests that are listed and then display their unique coverage. Use -s to list files you are interested in.
+3. Apply the following patch to your local mozilla-central clone: https://hg.mozilla.org/try/rev/e34fd3280759
 
+4. Place the `tests_to_verify.json` from (2) in the `mozilla-central` folder (commit it) and run `./mach try fuzzy --full -q "'test-coverage"`.
 
-## Usage example for pertestcoverage_variability analysis:
+5. (*_rawdata analysis only). Once complete, get a task ID from any of the tasks and modify `pertestcoverage/analysistypes/configs/config_artifact_downloader.yml` to add it to the `task_id` field. Run:
 ```
-py pertestcoverage_variability.py  ~\per-test-coverage-reports\EKzK4lJ3Rt2BH3zDGVdXjA\0\test-coverage-e10s -t test_bug --differences --line-range 0 10000000 --variability-threshold 50 100 -o ~\data_holder
-```
-
-This tool will save all the consecutive differences between the given files (--save-all to save all differences), where the files compared are determined by the range --variability-threshold which defines the min and max number of lines changed from one run to another. --line-range determines how large the per-test-coverage JSON should be in number of lines hit - used to restrict multiple test JSONs within the same folder from being used (if a test has atleast 0 to 10000000 lines it is kept in this case). The graphs show the total line hits per test, the change relative to the mean hits, and the coverage for each file overtime with the mean overlaid onto the plots (in blue). Restrict the files seen here, and saved by using --variability-threshold.
-
-
-```
-py pertestcoverage_variability.py  ~\per-test-coverage-reports\EKzK4lJ3Rt2BH3zDGVdXjA\0\test-coverage-e10s -t test_bug --aggregation-graph --line-range 0 10000000 --variability-threshold 50 100 -o ~\data_holder
+ptc artifact_downloader -c config_artifact_downloader.yml
 ```
 
-Using --aggregation-graph will perform an aggregated comparison, aggregating all reports found, and then displaying the total number of lines hit across all files (overlaid onto the mean) over time. Low variability will show a line that may be increasing but is close to the horizontal. High variability shows exponentially increasing line counts with little slowdown (or does not approach the horizontal slope of 0).
+OR with the default config, using `--task-id`:
+
+```
+ptc artifact_downloader -c config_artifact_downloader.yml --task-id 2RJ19daCW91
+```
+
+Once complete, the data will be contained in the output directory in a folder named by the task group ID. Both the chrome-map and the per-test-coverage data will be in the `data` folder. To simplify naming and searching, it can be easier to move the chrome-map to the top of the task group directory. IMPORTANT: (Be careful not to mix chrome-mappings between linux and windows builds).
+
+6. Modify `config_fixed_by_commit_analaysis_rawdata.yml` to add the data you've downloaded (and the chrome-map to use) and set `analyze_all` to `True` to disable automated filtering. Setting `include_guaranteed` to `True` will incude the patches with only test-related changes in the success rate (SETA success rates include this as well). Once ready, run:
+```
+ptc fixed_by_commit_analysis_rawdata -c config_fixed_by_commit_analysis.yml
+```
+
+This may take some time depending on the quantity of data being analyzed, but once complete a pie chart will be displayed giving you the success rate. The total number of changesets included in the analysis is printed to the terminal, and some JSONs with information of the analysis are output in the `outputdir` location. `*_per_changeset_breakdown` might be the most interesting, as it contains information on each changeset. `*_test_matching_info.json` contains an entry for the names of tests with no data that can be used for debugging to try to obtain coverage for them.

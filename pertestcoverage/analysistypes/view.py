@@ -229,11 +229,13 @@ def view(
 
 def run(args=None, config=None):
 	if args:
-		parser = AnalysisParser('config')
+		parser = AnalysisParser('config', 'test')
 		args = parser.parse_analysis_args(args)
 		config = args.config
 	if not config:
 		raise Exception("Missing `config` dict argument.")
+	if args.test:
+		config['test_files'] = args.test
 
 	view(
 		**config

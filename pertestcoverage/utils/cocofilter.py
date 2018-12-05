@@ -344,6 +344,26 @@ def group_tests(json_data_list):
 	return test_groups
 
 
+def get_tests_with_no_data(json_data_list, tests_to_find):
+	tests_found = []
+	all_tests = []
+
+	for fmtd_test_dict in json_data_list:
+		test_name = ''
+		suite_name = ''
+		if 'test' in fmtd_test_dict:
+			test_name = fmtd_test_dict['test']
+			all_tests.append(test_name)
+			res = pattern_find(test_name, tests_to_find)
+			if not res:
+				continue
+			tests_found.append(res)
+
+	return list(
+		set(tests_to_find) - set(tests_found)
+	)
+
+
 def find_new_files_in_changesets(cset_n_repo_list):
 	cset_to_newfiles = {}
 	for count, (cset, repo) in enumerate(cset_n_repo_list):
@@ -575,3 +595,21 @@ def clean_test_names(test_names, mozcentral_path=None, ignore_wpt_existence=Fals
 
 	return mapping.values(), mapping
 
+
+def fix_names(test_fixed_entries, test_names):
+	'''Fixes and cleans test names.'''
+	new_names = []
+	for test_matcher in test_names:
+		good_name = ''
+		for tp in test_fixed_entries:
+			_, suite, _, test_fixed = tp
+			if test_matcher in test_fixed or test_fixed in test_matcher:
+				good_name = test_fixed
+				break
+
+		if 'mochi' in suite or 'xpcshell' in suite:
+			good_name = good_name.split('ini:')[-1]
+		else:
+			good_name = clean_test_name(good_name)
+		new_names.append(good_name)
+	return new_names

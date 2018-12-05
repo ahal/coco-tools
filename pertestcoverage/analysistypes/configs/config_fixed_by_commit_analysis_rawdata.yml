@@ -3,7 +3,8 @@ startrev: "981bcfe73738" #"7ac88abc3c57" #"981bcfe73738" #"d03b538b6b41" #"d2218
 outputdir: "/home/sparky/Documents/tmp/"
 analysisbranch: "mozilla-inbound"
 analyze_all: False
-runname: 'Analysis 10 (Lsqf2ezUQWifS0okmF1Jqw) - linux64 all tests, yes conditions'
+runname: 'Analysis 12, all data, yes/maybe conditions'
+include_guaranteed: True
 
 # For each branch in the given changesets, specify the HG repository i.e. mozilla-inbound -> integration/mozilla-inbound
 hg_analysisbranch:
@@ -14,7 +15,7 @@ hg_analysisbranch:
 # with the same format as sample_csv.csv:
 #   (fixed_by_revision, job_name, repo, test_fixed)
 changesets: [
-    '/home/sparky/Downloads/all-linux64-fixed_by_commit_492.csv'
+    '/home/sparky/Downloads/all-platforms-fixed_by_commit_764.csv'
 ]
 
 tc_tasks_rev_n_branch: [
@@ -35,20 +36,27 @@ pertest_rawdata_folders:
     #- location: "/home/sparky/Documents/tmp/YF3lZiRXT6y9kzw_SvYsLQ/"
     #  type: "pertestreport"
     #  chrome-map: "/home/sparky/Documents/tmp/YF3lZiRXT6y9kzw_SvYsLQ/chrome-map.json"
+    # Analysis 12 - all platforms, all suites
+    - location: "/home/sparky/Documents/tmp/dKGjlVzOTk6CQWFZLO3l9g/5"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/dKGjlVzOTk6CQWFZLO3l9g/5/chrome-map.json"
+    - location: "/home/sparky/Documents/tmp/dKGjlVzOTk6CQWFZLO3l9g/6"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/dKGjlVzOTk6CQWFZLO3l9g/6/chrome-map.json"
     # Analysis 8 & 9 - wpt reftests
     #- location: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/"
     #  type: "pertestreport"
     #  chrome-map: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/chrome-map.json"
-    #- location: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/"
-    #  type: "pertestreport"
-    #  chrome-map: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/chrome-map.json"
+    - location: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/chrome-map.json"
     # Analysis 7 - mochitest n xpcshell
-    - location: "/home/sparky/Documents/tmp/VmbrLC-2Rg2TFzzwCfVfqA/"
-      type: "pertestreport"
-      chrome-map: "/home/sparky/Documents/tmp/VmbrLC-2Rg2TFzzwCfVfqA/chrome-map.json"
-    - location: "/home/sparky/Documents/tmp/MtGKSrItQgqQMugHdE7rJg/"
-      type: "pertestreport"
-      chrome-map: "/home/sparky/Documents/tmp/MtGKSrItQgqQMugHdE7rJg/chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/VmbrLC-2Rg2TFzzwCfVfqA/"
+    #  type: "pertestreport"include_guaranteed
+    #  chrome-map: "/home/sparky/Documents/tmp/VmbrLC-2Rg2TFzzwCfVfqA/chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/MtGKSrItQgqQMugHdE7rJg/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/MtGKSrItQgqQMugHdE7rJg/chrome-map.json"
     # Analysis 7 - linux mochitest n xpcshell
     - location: "/home/sparky/Documents/tmp/NKACHvgaT0uV-VESWcvVdg/"
       type: "pertestreport"
@@ -56,7 +64,14 @@ pertest_rawdata_folders:
     # Analysis 10 - all linux64
     - location: "/home/sparky/Documents/tmp/Lsqf2ezUQWifS0okmF1Jqw/"
       type: "pertestreport"
-      chrome-map: "/home/sparky/Documents/tmp/Lsqf2ezUQWifS0okmF1Jqw/chrome-map.json"   
+      chrome-map: "/home/sparky/Documents/tmp/Lsqf2ezUQWifS0okmF1Jqw/chrome-map.json"
+    # Analysis 11 - all windows10 
+    - location: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/1/windows"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/0/win/chrome-map.json"
+    - location: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/1/linux"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/0/linux/chrome-map.json"
     # Other analysis
     #- location: "/home/sparky/Documents/tmp/Upmd38GnST-htTHj5gHIJw/"
     #  type: "std-ptc-format"

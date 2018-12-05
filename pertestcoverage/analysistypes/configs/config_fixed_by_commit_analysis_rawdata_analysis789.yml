@@ -36,12 +36,12 @@ pertest_rawdata_folders:
     #  type: "pertestreport"
     #  chrome-map: "/home/sparky/Documents/tmp/YF3lZiRXT6y9kzw_SvYsLQ/chrome-map.json"
     # Analysis 8 & 9 - wpt reftests
-    - location: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/"
-      type: "pertestreport"
-      chrome-map: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/chrome-map.json"
-    - location: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/"
-      type: "pertestreport"
-      chrome-map: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/dMp-YYGGTUuRZF8EjT7D1w/chrome-map.json"
     # Analysis 7 - mochitest n xpcshell
     - location: "/home/sparky/Documents/tmp/VmbrLC-2Rg2TFzzwCfVfqA/"
       type: "pertestreport"
@@ -54,9 +54,9 @@ pertest_rawdata_folders:
       type: "pertestreport"
       chrome-map: "/home/sparky/Documents/tmp/NKACHvgaT0uV-VESWcvVdg/chrome-map.json"
     # Analysis 10 - all linux64
-    - location: "/home/sparky/Documents/tmp/Lsqf2ezUQWifS0okmF1Jqw/"
-      type: "pertestreport"
-      chrome-map: "/home/sparky/Documents/tmp/Lsqf2ezUQWifS0okmF1Jqw/chrome-map.json"   
+    #- location: "/home/sparky/Documents/tmp/Lsqf2ezUQWifS0okmF1Jqw/"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/Lsqf2ezUQWifS0okmF1Jqw/chrome-map.json"   
     # Other analysis
     #- location: "/home/sparky/Documents/tmp/Upmd38GnST-htTHj5gHIJw/"
     #  type: "std-ptc-format"

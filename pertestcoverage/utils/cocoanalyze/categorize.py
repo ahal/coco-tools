@@ -13,6 +13,7 @@ from ..cocofilter import (
 	find_support_files_modified,
 	find_files_in_changeset
 )
+from ..cocoload import pattern_find
 
 log = logging.getLogger('pertestcoverage')
 
@@ -87,15 +88,21 @@ def is_c_file(file):
 	return False
 
 
-def c_file_exists(ptc_info):
+def c_file_exists(ptc_info, exclusive=False):
 	fmod = ptc_info['files_modified']
 	for f in fmod:
 		if is_c_file(f):
-			return True
+			if not exclusive:
+				# Found a c-file and we are
+				return True
+		elif exclusive: # Changeset must have only c-changes
+			return False
+	if exclusive:
+		return True
 	return False
 
 
-def categorize_c_changes(ptc_breakdown_datalist, use_failed=True, **kwargs):
+def categorize_c_changes(ptc_breakdown_datalist, use_failed=True, exclusive=False, **kwargs):
 	'''Returns changesets which have C/C++ changes.'''
 	new_data_list = []
 
@@ -108,7 +115,7 @@ def categorize_c_changes(ptc_breakdown_datalist, use_failed=True, **kwargs):
 			{
 				cset: info
 				for cset, info in data.items()
-				if c_file_exists(info)
+				if c_file_exists(info, exclusive=exclusive)
 			}
 		)
 
@@ -227,8 +234,58 @@ def visualize_all(categ_data, **kwargs):
 	return
 
 
+def visualize_by_suite(categ_data, suite_splitter=['', 0], sort_into_suites=[], **kwargs):
+	# Breakdown categ_data into a dict keyed by suite
+	suites_dict = {}
+	for categ_item in categ_data:
+		ptc_breakdown_datalist = categ_item['data']
+		for ptc_breakdown in ptc_breakdown_datalist:
+			if len(ptc_breakdown) == 0:
+				continue
+			if 'suite' not in ptc_breakdown[list(ptc_breakdown.keys())[0]]:
+				continue
+
+			category = categ_item['category']
+			for cset, ptc_info in ptc_breakdown.items():
+				suite = ptc_info['suite'].split(suite_splitter[0])[suite_splitter[1]]
+				if sort_into_suites:
+					res = pattern_find(suite, sort_into_suites)
+					if res:
+						suite = res
+					else:
+						continue
+				if suite not in suites_dict:
+					suites_dict[suite] = {}
+				if category not in suites_dict[suite]:
+					suites_dict[suite][category] = []
+				suites_dict[suite][category].append((cset, ptc_info))
+
+	new_suites_dict = {}
+	for suite in suites_dict:
+
+		new_suites_dict[suite] = []
+		for category in suites_dict[suite]:
+
+			fmtd_entries = {}
+			for entry in suites_dict[suite][category]:
+				fmtd_entries[entry[0]] = entry[1]
+
+			new_suites_dict[suite].append({
+				'category': category,
+				'data': [fmtd_entries]
+			})
+
+	log.info('\n')
+	for suite in new_suites_dict:
+		log.info('Visualizing suite: %s' % suite)
+		visualize_all(new_suites_dict[suite], **kwargs)
+
+		log.info('\n')
+
+
 VISUALIZATIONS = {
-	'visualize_all': visualize_all
+	'visualize_all': visualize_all,
+	'visualize_by_suite': visualize_by_suite
 }
 
 

@@ -9,9 +9,11 @@ from matplotlib import pyplot as plt
 from ..cli import AnalysisParser
 
 from ..utils.cocofilter import (
+	fix_names,
 	find_files_in_changeset,
 	find_support_files_modified,
-	filter_per_test_tests
+	filter_per_test_tests,
+	get_tests_with_no_data
 )
 
 from ..utils.cocoload import (
@@ -23,6 +25,7 @@ from ..utils.cocoload import (
 	get_coverage_tests_from_jsondatalist,
 	get_all_pertest_data,
 	get_all_stdptc_data,
+	format_testname,
 	HG_URL,
 	TYPE_PERTEST,
 	TYPE_STDPTC
@@ -82,6 +85,7 @@ def run(args=None, config=None):
 	analyze_all = config['analyze_all'] if 'analyze_all' in config else False
 	mozcentral_path = config['mozcentral_path'] if 'mozcentral_path' in config else None
 	runname = config['runname'] if 'runname' in config else None
+	include_guaranteed = config['include_guaranteed'] if 'include_guaranteed' in  config else False
 
 	changesets = []
 	for csets_csv_path in changesets_list:
@@ -130,10 +134,11 @@ def run(args=None, config=None):
 	jsondatalist = []
 	for location_entry in pertest_rawdata_folders:
 		if location_entry['type'] == TYPE_PERTEST:
+			print('here')
 			jsondatalist.extend(get_all_pertest_data(location_entry['location'], chrome_map_path=location_entry['chrome-map']))
 		elif location_entry['type'] == TYPE_STDPTC:
+			print('here2')
 			jsondatalist.extend(get_all_stdptc_data(location_entry['location'], chrome_map_path=location_entry['chrome-map']))
-	
 
 	all_failed_ptc_tests = get_coverage_tests(tc_tasks_rev_n_branch, get_failed=True)
 
@@ -156,8 +161,23 @@ def run(args=None, config=None):
 	#tests_with_no_data += ['svg/fragid-shadow-3', 'opening-the-input-stream/abort-refresh-immediate', 'vector/tall--32px-auto--nonpercent-width-nonpercent-height', 'drawing-text-to-the-canvas/2d', 'bugs/467444-1', 'opening-the-input-stream/ignore-opens-during-unload', 'masking/mask-opacity-1e', 'text-overflow/xulscroll', 'svg/foreignObject-img', 'the-fieldset-element-0/legend-position-relative', 'input/shadow-rules', 'shared-array-buffers/nested-worker-success-dedicatedworker', 'tests/perf_reftest', 'controlling-ua/reconnectToPresentation_notfound_error', 'svg/fragid-shadow-3', 'text/hyphenation-control-5', 'xul/treetwisty-svg-context-paint-1', 'canvas/1304353-text-global-composite-op-1', 'reftests/blending-svg-root', 'cors/cors-safelisted-request-header', 'xul/treetwisty-svg-context-paint-1', 'tests/testname', 'bugs/508816-1', 'bugs/1425243-1', 'reftests/468263-2']
 
 	# Ignore for analysis 7
-	tests_with_no_data = ['browser/extensions/onboarding/test/browser/browser_onboarding_accessibility.js', 'toolkit/components/extensions/test/xpcshell/test_ext_legacy_extension_embedding.js', 'browser/base/content/test/trackingUI/browser_trackingUI_trackers_subview.js', 'browser/components/sessionstore/test/browser_async_remove_tab.js', 'browser/extensions/pdfjs/test/browser_pdfjs_savedialog.js', 'toolkit/components/extensions/test/xpcshell/test_ext_telemetry.js', 'browser/components/originattributes/test/browser/browser_firstPartyIsolation.js', 'browser/components/uitour/test/browser_UITour.js', 'browser/base/content/test/general/browser_contextmenu.js', 'devtools/client/webide/test/test_toolbox.html', 'toolkit/components/extensions/test/xpcshell/test_ext_webRequest_startup.js', 'browser/base/content/test/forms/browser_selectpopup.js', 'devtools/client/inspector/grids/test/browser_grids_no_fragments.js', 'dom/base/test/browser_force_process_selector.js', 'dom/canvas/test/webgl-conf/generated/test_2_conformance2__vertex_arrays__vertex-array-object.html', 'browser/components/tests/unit/test_browserGlue_migration_loop_cleanup.js', 'dom/payments/test/test_block_none10s.html', 'browser/components/payments/test/mochitest/test_basic_card_form.html', 'browser/extensions/screenshots/test/browser/browser_screenshots_ui_check.js', 'toolkit/components/extensions/test/xpcshell/test_ext_topSites.js', 'dom/base/test/test_script_loader_js_cache.html', 'toolkit/components/extensions/test/xpcshell/test_ext_alarms_replaces.js', 'browser/base/content/test/static/browser_misused_characters_in_strings.js', 'toolkit/components/extensions/test/xpcshell/test_ext_contentscript_create_iframe.js', 'devtools/client/webide/test/test_addons.html', 'browser/components/translation/test/browser_translation_infobar.js', 'dom/base/test/browser_use_counters.js', 'browser/base/content/test/siteIdentity/browser_tls_handshake_failure.js', 'devtools/client/debugger/test/mochitest/browser_dbg_aaa_run_first_leaktest.js', 'browser/components/extensions/test/browser/test-oop-extensions/browser_ext_popup_select.js', 'devtools/client/shared/test/browser_dbg_listaddons.js', 'devtools/client/webconsole/test/mochitest/browser_jsterm_completion_invalid_dot_notation.js', 'browser/base/content/test/urlbar/browser_autocomplete_enter_race.js', 'devtools/client/debugger/test/mochitest/browser_dbg_split-console-keypress.js', 'devtools/client/styleeditor/test/browser_styleeditor_media_sidebar_links.js', 'devtools/client/inspector/grids/test/browser_grids_grid-list-on-iframe-reloaded.js', 'browser/components/urlbar/tests/unit/test_UrlbarInput_unit.js', 'testname', 'browser/base/content/test/static/browser_parsable_css.js', 'browser/base/content/test/static/browser_all_files_referenced.js', 'dom/canvas/test/webgl-conf/generated/test_2_conformance2__textures__misc__npot-video-sizing.html', 'memory/replace/dmd/test/test_dmd.js', 'browser/base/content/test/general/browser_storagePressure_notification.js', 'dom/canvas/test/webgl-conf/generated/test_2_conformance2__rendering__framebuffer-texture-changing-base-level.html', 'devtools/client/webide/test/test_device_runtime.html']
+	#tests_with_no_data.extend(['browser/extensions/onboarding/test/browser/browser_onboarding_accessibility.js', 'toolkit/components/extensions/test/xpcshell/test_ext_legacy_extension_embedding.js', 'browser/base/content/test/trackingUI/browser_trackingUI_trackers_subview.js', 'browser/components/sessionstore/test/browser_async_remove_tab.js', 'browser/extensions/pdfjs/test/browser_pdfjs_savedialog.js', 'toolkit/components/extensions/test/xpcshell/test_ext_telemetry.js', 'browser/components/originattributes/test/browser/browser_firstPartyIsolation.js', 'browser/components/uitour/test/browser_UITour.js', 'browser/base/content/test/general/browser_contextmenu.js', 'devtools/client/webide/test/test_toolbox.html', 'toolkit/components/extensions/test/xpcshell/test_ext_webRequest_startup.js', 'browser/base/content/test/forms/browser_selectpopup.js', 'devtools/client/inspector/grids/test/browser_grids_no_fragments.js', 'dom/base/test/browser_force_process_selector.js', 'dom/canvas/test/webgl-conf/generated/test_2_conformance2__vertex_arrays__vertex-array-object.html', 'browser/components/tests/unit/test_browserGlue_migration_loop_cleanup.js', 'dom/payments/test/test_block_none10s.html', 'browser/components/payments/test/mochitest/test_basic_card_form.html', 'browser/extensions/screenshots/test/browser/browser_screenshots_ui_check.js', 'toolkit/components/extensions/test/xpcshell/test_ext_topSites.js', 'dom/base/test/test_script_loader_js_cache.html', 'toolkit/components/extensions/test/xpcshell/test_ext_alarms_replaces.js', 'browser/base/content/test/static/browser_misused_characters_in_strings.js', 'toolkit/components/extensions/test/xpcshell/test_ext_contentscript_create_iframe.js', 'devtools/client/webide/test/test_addons.html', 'browser/components/translation/test/browser_translation_infobar.js', 'dom/base/test/browser_use_counters.js', 'browser/base/content/test/siteIdentity/browser_tls_handshake_failure.js', 'devtools/client/debugger/test/mochitest/browser_dbg_aaa_run_first_leaktest.js', 'browser/components/extensions/test/browser/test-oop-extensions/browser_ext_popup_select.js', 'devtools/client/shared/test/browser_dbg_listaddons.js', 'devtools/client/webconsole/test/mochitest/browser_jsterm_completion_invalid_dot_notation.js', 'browser/base/content/test/urlbar/browser_autocomplete_enter_race.js', 'devtools/client/debugger/test/mochitest/browser_dbg_split-console-keypress.js', 'devtools/client/styleeditor/test/browser_styleeditor_media_sidebar_links.js', 'devtools/client/inspector/grids/test/browser_grids_grid-list-on-iframe-reloaded.js', 'browser/components/urlbar/tests/unit/test_UrlbarInput_unit.js', 'testname', 'browser/base/content/test/static/browser_parsable_css.js', 'browser/base/content/test/static/browser_all_files_referenced.js', 'dom/canvas/test/webgl-conf/generated/test_2_conformance2__textures__misc__npot-video-sizing.html', 'memory/replace/dmd/test/test_dmd.js', 'browser/base/content/test/general/browser_storagePressure_notification.js', 'dom/canvas/test/webgl-conf/generated/test_2_conformance2__rendering__framebuffer-texture-changing-base-level.html', 'devtools/client/webide/test/test_device_runtime.html'])
 
+	tmp_tests = []
+	for count, tp in enumerate(changesets):
+		if len(tp) == 4:
+			changeset, suite, repo, test_fixed = tp
+		else:
+			cov_exists, status, code, changeset, suite, repo, test_fixed, _ = tp
+
+		if 'mochitest' in suite or 'xpcshell' in suite:
+			test_fixed = format_testname(test_fixed)
+		else:
+			test_fixed = test_fixed.split('ini:')[-1]
+		tmp_tests.append(test_fixed)
+	tests_with_no_data = get_tests_with_no_data(jsondatalist, tmp_tests)
+	log.info("Number of tests with no data: %s" % str(len(tests_with_no_data)))
+	log.info("Number of tests in total: %s" % str(len(tmp_tests)))
 
 	# For each patch
 	changesets_removed = {}
@@ -176,13 +196,11 @@ def run(args=None, config=None):
 			if 'test' in status:
 				continue
 
-		test_fixed = test_fixed.split('=')[-1]
-		test_fixed = test_fixed.split('?')[0]
-		test_fixed = '/'.join(test_fixed.split('/')[-2:])
-		test_fixed = test_fixed.split('#')[0].split('.')[0]
+		orig_test_fixed = test_fixed
+		test_fixed = test_fixed.split('ini:')[-1]
+		if 'mochitest' not in suite and 'xpcshell' not in suite:
+			test_fixed = format_testname(test_fixed)
 
-		if test_fixed.startswith("xpcshell.ini:"):
-			continue
 		found_bad = False
 		for t in tests_with_no_data:
 			if test_fixed in t or t in test_fixed:
@@ -217,12 +235,8 @@ def run(args=None, config=None):
 				f for f in files_modified
 				if '/test/' not in f and '/tests/' not in f and 'testing/' not in f
 			]
-			files_modified = [
-				f for f in files_modified
-				if ('.js' in f and not f.endswith('.json')) or \
-				   '.cpp' in f or f.endswith('.h') or f.endswith('.c')
-			]
 
+			# We don't have coverage on new files
 			new, _, _ = find_files_in_changeset(changeset, repo)
 			new = [n.lstrip('/') for n in new]
 			files_modified = list(set(files_modified) - set(new))
@@ -231,7 +245,31 @@ def run(args=None, config=None):
 				changesets_removed[changeset] = {}
 				changesets_removed[changeset]['support/test files modified'] = orig_files_modified
 				log.info("No files modified after filtering test-only or support files.")
-				num_guaranteed += 1
+				if include_guaranteed:
+					num_guaranteed += 1
+					changeset_name = changeset + "_" + str(cset_count)
+					tests_for_changeset[changeset_name] = {
+						'patch-link': HG_URL + currhg_analysisbranch + "/rev/" + changeset,
+						'numfiles': len(orig_files_modified),
+						'numtests': 1,
+						'numtestsfailed': 1,
+						'numtestsnotrun': len(all_tests_not_run),
+						'reasons_not_run': '',
+						'files_modified': orig_files_modified,
+						'suite': suite,
+						'runname': runname,
+						'test-related': test_fixed,
+						'testsnotrun': [],
+					}
+				continue
+
+			files_modified = [
+				f for f in files_modified
+				if ('.js' in f and not f.endswith('.json')) or \
+				   '.cpp' in f or f.endswith('.h') or f.endswith('.c')
+			]
+			if len(files_modified) == 0:
+				log.info("No files left after removing unrelated changes.")
 				continue
 
 		# Get tests that use this patch
@@ -242,7 +280,8 @@ def run(args=None, config=None):
 		failed_tests = []
 
 		try:
-			failed_tests = query_activedata(failed_tests_query_json)
+			failed_tests = {}
+			#failed_tests = query_activedata(failed_tests_query_json)
 		except Exception as e:
 			log.info("Error running query: " + str(failed_tests_query_json))
 
@@ -320,8 +359,17 @@ def run(args=None, config=None):
 	## Save results (number, and all tests scheduled)
 	if outputdir:
 		log.info("\nSaving results to output directory: " + outputdir)
-		save_json(tests_for_changeset, outputdir, str(int(time.time())) + '_per_changeset_breakdown.json')
-		save_json(changesets_removed, outputdir, str(int(time.time())) + '_changesets_with_only_test_or_support_files.json')
+		timestr = str(int(time.time()))
+		save_json(tests_for_changeset, outputdir, timestr + '_per_changeset_breakdown.json')
+		save_json(changesets_removed, outputdir, timestr + '_changesets_with_only_test_or_support_files.json')
+		save_json(
+			{
+				'testswithnodata': fix_names(changesets, tests_with_no_data),
+				'alltests-matchers': tmp_tests,
+			},
+			outputdir,
+			timestr + '_test_matching_info.json'
+		)
 
 	# Plot a second bar on top
 	f = plt.figure()

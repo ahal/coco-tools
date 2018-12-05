@@ -51,8 +51,8 @@ def pattern_find(srcf_to_find, sources):
 
 	for srcf in sources:
 		if srcf in srcf_to_find:
-			return True
-	return False
+			return srcf
+	return None
 
 
 def hg_branch(branch):
@@ -105,6 +105,20 @@ def chrome_mapping_rewrite(srcfiles, chrome_map_path, chrome_map_name=None):
 		return srcfiles
 
 	return new_srcfiles
+
+
+def format_testname(tname):
+	'''
+		Format test name to 'folder/filename'
+		to easily find compare tests when their
+		names differ.
+		i.e. dom/media/file.cpp --becomes--> media/file
+	'''
+	tname = tname.split('=')[-1]
+	tname = tname.split('?')[0]
+	tname = '/'.join(tname.split('/')[-2:])
+	tname = tname.split('#')[0].split('.')[0]
+	return tname
 
 
 def get_and_check_config(args=None, config=None):
@@ -466,15 +480,16 @@ def get_ad_jsdcov_file(taskID):
 	)
 
 
-def rununtiltimeout(func):
+def rununtiltimeout(func, **kwargs):
 	retries = 0
 	response = None
-
 	while retries < RETRY['times']:
 		try:
-			response = func()
+			response = func(**kwargs)
 			break
-		except:
+		except Exception as e:
+			log.info("Error encountered while getting URL...retrying...('-v' to see the error)")
+			log.debug("Error: %s " % str(e))
 			if retries < RETRY['times']:
 				retries += 1
 				continue

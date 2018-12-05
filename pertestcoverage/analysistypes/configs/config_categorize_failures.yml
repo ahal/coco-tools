@@ -1,10 +1,14 @@
 visualize_all: True
 
+visualize_by_suite: True
+sort_into_suites: ['mochitest', 'xpcshell', 'web', 'ref', 'crash']
+suite_splitter: ['/', 1]
+
 file_matchers: [
-  'wpt'
+  'allsuitesandplatforms_per_changeset_breakdown'
 ]
 
-dirs: ['/home/sparky/Documents/tmp/tmp2']
+dirs: ['/home/sparky/Documents/tmp/categorize1']
 categories: [
   'failed-changes',
   'js-changes',

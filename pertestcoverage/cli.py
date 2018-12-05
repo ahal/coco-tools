@@ -67,8 +67,9 @@ ARGUMENT_GROUPS = {
 	],
 	'test': [
 		[['-t', '--test'],
-		 {'required': True,
-		  'dest': 'test_name',
+		 {'required': False,
+		  'default': None,
+		  'dest': 'test',
 		  'help': "Path to a test file",
 		  }],
 	],
@@ -78,7 +79,22 @@ ARGUMENT_GROUPS = {
 		  'dest': 'config',
 		  'help': "Configuration YAML for analysis types.",
 		  }],
-	],
+	]
+	'downloader': [
+		[['--task-id'],
+		 {'required': False,
+		  'dest': 'task_id',
+		  'default': None,
+		  'help': "Task ID from the task that contains the data.",
+		  }],
+		[['--artifact'],
+		 {'required': False,
+		  'dest': 'artifacts',
+		  'default': None
+		  'type': '+'
+		  'help': "Patterns for artifacts to download.",
+		  }],
+	]
 }
 """
 These are commonly used arguments which can be re-used. They are shared to
