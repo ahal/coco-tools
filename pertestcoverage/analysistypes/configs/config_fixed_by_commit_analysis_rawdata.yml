@@ -6,6 +6,11 @@ analyze_all: False
 runname: 'Analysis 12, all data, yes/maybe conditions'
 include_guaranteed: True
 
+use_active_data: True
+suites_to_analyze: ['mochitest', 'xpcshell', 'web']
+platforms_to_analyze: ['linux', 'win', 'mac', 'osx']
+from_date: "2018-08-28"
+
 # For each branch in the given changesets, specify the HG repository i.e. mozilla-inbound -> integration/mozilla-inbound
 hg_analysisbranch:
     mozilla-inbound: "integration/mozilla-inbound" # This may sometimes be different from `analysisbranch`
@@ -43,6 +48,12 @@ pertest_rawdata_folders:
     - location: "/home/sparky/Documents/tmp/dKGjlVzOTk6CQWFZLO3l9g/6"
       type: "pertestreport"
       chrome-map: "/home/sparky/Documents/tmp/dKGjlVzOTk6CQWFZLO3l9g/6/chrome-map.json"
+    - location: "/home/sparky/Documents/tmp/BwqIz1O-QuGFPd9q1B4uiw/0/win"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/BwqIz1O-QuGFPd9q1B4uiw/0/win/chrome-map.json"
+    - location: "/home/sparky/Documents/tmp/BwqIz1O-QuGFPd9q1B4uiw/0/linux"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/BwqIz1O-QuGFPd9q1B4uiw/0/linux/chrome-map.json"
     # Analysis 8 & 9 - wpt reftests
     #- location: "/home/sparky/Documents/tmp/RhOGxnwBQI6SZijXI0BJEw/"
     #  type: "pertestreport"
@@ -66,12 +77,12 @@ pertest_rawdata_folders:
       type: "pertestreport"
       chrome-map: "/home/sparky/Documents/tmp/Lsqf2ezUQWifS0okmF1Jqw/chrome-map.json"
     # Analysis 11 - all windows10 
-    - location: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/1/windows"
-      type: "pertestreport"
-      chrome-map: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/0/win/chrome-map.json"
-    - location: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/1/linux"
-      type: "pertestreport"
-      chrome-map: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/0/linux/chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/1/windows"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/0/win/chrome-map.json"
+    #- location: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/1/linux"
+    #  type: "pertestreport"
+    #  chrome-map: "/home/sparky/Documents/tmp/Hl9AHOZDSlG1dz62MCLyZA/0/linux/chrome-map.json"
     # Other analysis
     #- location: "/home/sparky/Documents/tmp/Upmd38GnST-htTHj5gHIJw/"
     #  type: "std-ptc-format"

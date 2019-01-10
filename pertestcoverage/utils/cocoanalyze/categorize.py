@@ -129,7 +129,9 @@ def categorize_unlreated(ptc_breakdown_datalist, use_failed=True, **kwargs):
 	'''
 	unrelated_data = []
 
-	failed_ptc_data = find_failed_changesets_list(ptc_breakdown_datalist)
+	failed_ptc_data = ptc_breakdown_datalist
+	if use_failed:
+		failed_ptc_data = find_failed_changesets_list(ptc_breakdown_datalist)
 
 	c_data = [d.keys() for d in categorize_c_changes(failed_ptc_data, use_failed=False)]
 	js_data = [d.keys() for d in categorize_js_changes(failed_ptc_data, use_failed=False)]
@@ -156,6 +158,66 @@ def categorize_unlreated(ptc_breakdown_datalist, use_failed=True, **kwargs):
 		)
 
 	return unrelated_data
+
+
+def categorize_directory_match(
+		ptc_breakdown_datalist,
+		use_failed=True,
+		levels_to_match=1,
+		level_splitter='/',
+		list_failures_not_matched=False,
+		**kwargs
+	):
+
+	directory_matched_data = []
+
+	failed_ptc_data = ptc_breakdown_datalist
+	if use_failed:
+		failed_ptc_data = find_failed_changesets_list(ptc_breakdown_datalist)
+
+	for num_entry, data in enumerate(failed_ptc_data):
+		if len(data) == 0:
+			continue
+
+		fentry = list(data.values())[0]
+		if 'testsnotrun' not in fentry or 'files_modified' not in fentry:
+			continue
+
+		tmp_result = []
+		for cset, info in data.items():
+			if len(info['testsnotrun']) == 0:
+				continue
+
+			test = info['testsnotrun'][0]
+			test_levels = '/'.join(test.split(level_splitter)[0:levels_to_match])
+
+			for file in info['files_modified']:
+				if test_levels in file or file in test_levels:
+					tmp_result.append(cset)
+					failed_ptc_data[num_entry][cset]['dir-match'] = True
+					break
+
+		directory_matched_data.append({
+			cset: failed_ptc_data[num_entry][cset]
+			for cset in tmp_result
+		})
+
+		if list_failures_not_matched:
+			unmatched = set(list(failed_ptc_data[num_entry].keys())) - set(tmp_result)
+			for cset in unmatched:
+				if len(failed_ptc_data[num_entry][cset]['testsnotrun']) == 0:
+					continue
+				log.info("")
+				log.info(
+					"Test not matched: %s" % \
+					failed_ptc_data[num_entry][cset]['testsnotrun'][0]
+				)
+				log.info(
+					"Files modified: \n %s" % \
+					str('\n'.join(['\t' + f for f in failed_ptc_data[num_entry][cset]['files_modified']]))
+				)
+
+	return directory_matched_data
 
 
 def find_test_related(data, mozpath=None, return_keys=False):
@@ -219,7 +281,7 @@ def categorize_test_changes(
 	return new_datalist
 
 
-def visualize_all(categ_data, **kwargs):
+def visualize_all(categ_data, show_files_modified=False, **kwargs):
 	for categ_item in categ_data:
 		categ_item['count'] = [
 			len(data.keys())
@@ -231,10 +293,20 @@ def visualize_all(categ_data, **kwargs):
 			(categ_item['category'], sum(categ_item['count']))
 		)
 
+		if show_files_modified:
+			files_modified = []
+			for data in categ_item['data']:
+				for key, info in data.items():
+					files_modified.extend(info['files_modified'])
+			log.info(
+				"Files modified: \n %s" % \
+				str('\n'.join(['\t' + f for f in files_modified]))
+			)
+
 	return
 
 
-def visualize_by_suite(categ_data, suite_splitter=['', 0], sort_into_suites=[], **kwargs):
+def visualize_by_suites(categ_data, suite_splitter=['', 0], sort_into_suites=[], **kwargs):
 	# Breakdown categ_data into a dict keyed by suite
 	suites_dict = {}
 	for categ_item in categ_data:
@@ -283,9 +355,73 @@ def visualize_by_suite(categ_data, suite_splitter=['', 0], sort_into_suites=[], 
 		log.info('\n')
 
 
+def visualize_by_tests(
+		categ_data,
+		sort_into_tests=[],
+		test_splitter=('***', 0),
+		visualize_by_suite=False,
+		**kwargs
+	):
+
+	# Breakdown into tests
+	tests_dict = {}
+	for categ_item in categ_data:
+		ptc_breakdown_datalist = categ_item['data']
+		for ptc_breakdown in ptc_breakdown_datalist:
+			if len(ptc_breakdown) == 0:
+				continue
+			if 'testsnotrun' not in list(ptc_breakdown.values())[0]:
+				continue
+
+			category = categ_item['category']
+			for cset, ptc_info in ptc_breakdown.items():
+				if not ptc_info['testsnotrun']:
+					continue
+
+				test = ptc_info['testsnotrun'][0].split(test_splitter[0])[test_splitter[1]]
+				if sort_into_tests:
+					res = pattern_find(test, sort_into_tests)
+					if res:
+						test = res
+					else:
+						continue
+				if test not in tests_dict:
+					tests_dict[test] = {}
+				if category not in tests_dict[test]:
+					tests_dict[test][category] = []
+
+				tests_dict[test][category].append((cset, ptc_info))
+
+	new_tests_dict = {}
+	for test in tests_dict:
+
+		new_tests_dict[test] = []
+		for category in tests_dict[test]:
+
+			fmtd_entries = {}
+			for entry in tests_dict[test][category]:
+				fmtd_entries[entry[0]] = entry[1]
+
+			new_tests_dict[test].append({
+				'category': category,
+				'data': [fmtd_entries]
+			})
+
+	log.info('\n')
+	for test in new_tests_dict:
+		log.info('Visualizing test: %s' % test)
+		if visualize_by_suite:
+			visualize_by_suites(new_tests_dict[test], **kwargs)
+		else:
+			visualize_all(new_tests_dict[test], **kwargs)
+
+		log.info('\n')
+
+
 VISUALIZATIONS = {
 	'visualize_all': visualize_all,
-	'visualize_by_suite': visualize_by_suite
+	'visualize_by_suite': visualize_by_suites,
+	'visualize_by_test': visualize_by_tests
 }
 
 
@@ -294,5 +430,6 @@ NAME2FUNCT = {
 	'js-changes': categorize_js_changes,
 	'c-changes': categorize_c_changes,
 	'unlreated-changes': categorize_unlreated,
-	'test-changes': categorize_test_changes
+	'test-changes': categorize_test_changes,
+	'dir-match': categorize_directory_match
 }

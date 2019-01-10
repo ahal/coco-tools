@@ -276,8 +276,10 @@ def run(args=None, config=None):
 	if not config:
 		raise Exception("Missing `config` dict argument.")
 
-	task_group_id = config['task_group_id'] if 'task_group_id' in config else args.task_id
-	task_id = config['task_id'] if 'task_id' in config else args.task_id
+	print(args)
+
+	task_group_id = config['task_group_id'] if 'task_group_id' in config else None
+	task_id = args.task_id if args.task_id else config['task_id']
 	test_suites = config['test_suites_list']
 	artifact_to_get = config['artifact_to_get']
 	unzip_artifact = config['unzip_artifact']
@@ -285,6 +287,8 @@ def run(args=None, config=None):
 	use_task_name = config['use_task_name'] if 'use_task_name' in config else True
 	download_failures = config['download_failures'] if config['download_failures'] is not None else False
 	outputdir = config['outputdir'] if config['outputdir'] is not None else os.getcwd()
+
+	print(task_id)
 
 	if args.artifacts:
 		if type(artifact_to_get) != list:

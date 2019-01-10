@@ -357,6 +357,9 @@ def get_tests_with_no_data(json_data_list, tests_to_find):
 			res = pattern_find(test_name, tests_to_find)
 			if not res:
 				continue
+			if 'source_files' in fmtd_test_dict and \
+			   not fmtd_test_dict['source_files']:
+				continue
 			tests_found.append(res)
 
 	return list(
@@ -605,11 +608,9 @@ def fix_names(test_fixed_entries, test_names):
 			_, suite, _, test_fixed = tp
 			if test_matcher in test_fixed or test_fixed in test_matcher:
 				good_name = test_fixed
+				good_name = good_name.split('ini:')[-1]
+				if not ('mochi' in suite or 'xpcshell' in suite):
+					good_name = clean_test_name(good_name)
 				break
-
-		if 'mochi' in suite or 'xpcshell' in suite:
-			good_name = good_name.split('ini:')[-1]
-		else:
-			good_name = clean_test_name(good_name)
 		new_names.append(good_name)
 	return new_names

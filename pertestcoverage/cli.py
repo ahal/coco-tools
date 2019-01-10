@@ -91,7 +91,7 @@ ARGUMENT_GROUPS = {
 		 {'required': False,
 		  'dest': 'artifacts',
 		  'default': None,
-		  'type': '+',
+		  'type': list,
 		  'help': "Patterns for artifacts to download.",
 		  }],
 	]

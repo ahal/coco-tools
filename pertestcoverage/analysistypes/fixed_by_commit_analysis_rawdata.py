@@ -26,6 +26,7 @@ from ..utils.cocoload import (
 	get_all_pertest_data,
 	get_all_stdptc_data,
 	format_testname,
+	pattern_find,
 	HG_URL,
 	TYPE_PERTEST,
 	TYPE_STDPTC
@@ -51,23 +52,11 @@ def plot_histogram(data, x_labels, title, figure=None, **kwargs):
 
 def run(args=None, config=None):
 	"""
-		Expects a `config` with the following settings:
+		Expects a `config` with the settings found in
+		pertestcoverage/configs/config_fixed_by_commit_rawdata.yml
 
-			# To limit number of patchs if there's a lot
-			numpatches: 100
-			outputdir: "C:/tmp/"
-			hg_analysisbranch:
-				mozilla-central: "mozilla-central"
-				mozill-inboun: "integration/mozilla-inbound"
-
-			# See 'config/config_fixed_by_commit_analysis.yml' for more info on the
-			# following field.
-			changesets: ["path_to_csv_with_data"]
-
-			tc_tasks_rev_n_branch: [
-				["dcb3a3ba9065", "try"],
-				["6369d1c6526b", "try"]
-			]
+		Throws errors if something is missing, all the settings
+		are listed at the top of the script.
 	"""
 	if args:
 		parser = AnalysisParser('config')
@@ -87,25 +76,22 @@ def run(args=None, config=None):
 	runname = config['runname'] if 'runname' in config else None
 	include_guaranteed = config['include_guaranteed'] if 'include_guaranteed' in  config else False
 	use_active_data = config['use_active_data'] if 'use_active_data' in config else False
+	skip_py = config['skip_py'] if 'skip_py' in config else True
 
-	changesets = []
-	for csets_csv_path in changesets_list:
-		with open(csets_csv_path, 'r') as f:
-			reader = csv.reader(f)
-			count = 0
-			for row in reader:
-				if count == 0:
-					count += 1
-					continue
-				changesets.append(tuple(row))
+	#if use_active_data:
+	suites_to_analyze = config['suites_to_analyze']
+	platforms_to_analyze = config['platforms_to_analyze']
+	from_date = config['from_date']
+
+	timestr = str(int(time.time()))
 
 	# JSONs to use for per-test test file queries
 	coverage_query = {
 		"from":"coverage",
 		"where":{"and":[
-			{"in":{"repo.changeset.id12":[rev for rev, branch in tc_tasks_rev_n_branch]}},
-			{"eq":{"repo.branch.name":"try"}},
-			{"regexp":{"test.name":""}}
+			{"eq":{"repo.branch.name":"mozilla-central"}},
+			{"regexp":{"test.name":""}},
+			{"exists":"test.name"}
 		]},
 		"limit":1,
 		"groupby":[{"name":"source","value":"source.file.name"}]
@@ -132,9 +118,72 @@ def run(args=None, config=None):
 		"select":[{"name":"test","value":"result.test"}]
 	}
 
+	fixed_by_commit_query_json = {
+		"from": "treeherder",
+		"groupby": [
+			"failure.notes.text",
+			"job.type.name",
+			"job_log.failure_line.repository",
+			"job_log.failure_line.test"
+		],
+		"limit": 2000,
+		"where": {
+			"and": [
+				{"in":{"job_log.failure_line.repository":["mozilla-inbound","autoland"]}},
+				{"or":[
+					{"regex":{"job.type.name":".*%s.*" % suite}}
+					for suite in suites_to_analyze
+				]},
+				{"or": [
+					{"regex":{"job.type.name":".*%s.*" % platform}}
+					for platform in platforms_to_analyze
+				]},
+				{"gte":{"action.start_time":{"date":from_date}}}, # From-date example: "2018-08-28"
+				{"prefix":{"job.type.name":"test-"}},
+				{"regexp":{"failure.classification":".*commit"}},
+				{"exists":"job_log.failure_line.test"}
+			]
+		}
+	}
+
+	# Gather changesets
+	changesets = []
+	if use_active_data:
+		log.info("Querying active data for all fixed_by_commit data...")
+		all_fcommit_data = query_activedata(fixed_by_commit_query_json)
+		log.debug("All fixed_by_commit data: \n %s" % str(all_fcommit_data))
+		for entry in all_fcommit_data:
+			bad_entry = False
+			for el in entry:
+				if not el:
+					bad_entry = True
+			if bad_entry:
+				continue
+			changesets.append(tuple(entry[0:4]))
+		with open(os.path.join(outputdir, timestr + '_fixed_by_commit_entries.csv'), 'w') as f:
+			def format_tp(tp):
+				new_tp = []
+				for el in tp:
+					if not el:
+						print("found error: %s" % str(el))
+					new_tp.append(str(el))
+				return new_tp
+			f.write('\n'.join([','.join(format_tp(tp)) for tp in changesets]))
+	else:
+		for csets_csv_path in changesets_list:
+			with open(csets_csv_path, 'r') as f:
+				reader = csv.reader(f)
+				count = 0
+				for row in reader:
+					if count == 0:
+						count += 1
+						continue
+					changesets.append(tuple(row))
+
 	jsondatalist = []
 	if not use_active_data:
 		for location_entry in pertest_rawdata_folders:
+			log.info("Opening data from %s" % location_entry)
 			if location_entry['type'] == TYPE_PERTEST:
 				print('here')
 				jsondatalist.extend(get_all_pertest_data(location_entry['location'], chrome_map_path=location_entry['chrome-map']))
@@ -150,21 +199,7 @@ def run(args=None, config=None):
 
 	histogram1_datalist = []
 
-	'''
-	tests_with_no_data = ['devtools/client/webide/test/test_addons.html', 'toolkit/components/normandy/test/browser/browser_AddonStudies.js', 'browser/components/customizableui/test/browser_remote_tabs_button.js', 'dom/payments/test/test_block_none10s.html', 'browser/components/sessionstore/test/browser_async_remove_tab.js', 'devtools/server/tests/unit/test_objectgrips-fn-apply.js', 'xpcshell-remote.ini:toolkit/components/extensions/test/xpcshell/test_ext_webRequest_startup.js', 'accessible/tests/mochitest/jsat/test_content_integration.html', 'xpcshell.ini:toolkit/mozapps/extensions/test/xpcshell/test_LightweightThemeManager.js', 'devtools/client/canvasdebugger/test/browser_canvas-actor-test-09.js', 'browser/components/payments/test/mochitest/test_basic_card_form.html', 'devtools/client/webide/test/test_device_runtime.html', 'browser/base/content/test/static/browser_all_files_referenced.js', 'devtools/client/framework/test/browser_browser_toolbox_debugger.js', 'xpcshell.ini:toolkit/mozapps/extensions/test/xpcshell/test_shutdown.js', 'browser/base/content/test/performance/browser_urlbar_search.js', 'xpcshell.ini:toolkit/components/extensions/test/xpcshell/test_ext_manifest_themes.js', 'devtools/client/inspector/flexbox/test/browser_flexbox_sizing_info_for_different_writing_modes.js', 'xpcshell.ini:toolkit/mozapps/extensions/test/xpcshell/test_AddonRepository.js', 'devtools/client/shared/test/browser_dbg_listaddons.js', 'browser/components/translation/test/browser_translation_infobar.js', 'devtools/client/debugger/test/mochitest/browser_dbg_aaa_run_first_leaktest.js', 'browser/base/content/test/static/browser_parsable_css.js', 'xpcshell-remote.ini:toolkit/components/extensions/test/xpcshell/test_ext_alarms_replaces.js', 'browser/components/sessionstore/test/browser_upgrade_backup.js', 'layout/xul/test/browser_bug703210.js', 'devtools/client/inspector/grids/test/browser_grids_no_fragments.js', 'browser/base/content/test/static/browser_parsable_script.js', 'browser/extensions/onboarding/test/browser/browser_onboarding_accessibility.js', 'browser/components/tests/unit/test_browserGlue_migration_loop_cleanup.js', 'browser/components/extensions/test/browser/browser_ext_slow_script.js', 'memory/replace/dmd/test/test_dmd.js', 'browser/components/payments/test/mochitest/test_address_option.html', 'testname', 'devtools/client/webconsole/test/mochitest/browser_jsterm_completion_invalid_dot_notation.js', 'toolkit/components/telemetry/tests/unit/test_TelemetryHealthPing.js', 'devtools/client/inspector/grids/test/browser_grids_grid-list-on-iframe-reloaded.js', 'browser/base/content/test/siteIdentity/browser_tls_handshake_failure.js', 'xpcshell.ini:toolkit/mozapps/extensions/test/xpcshell/test_webextension_langpack.js', 'dom/base/test/browser_use_counters.js', 'toolkit/content/tests/widgets/xbl/test_videocontrols_keyhandler.html']
-	tests_with_no_data.extend(
-		['/webdriver/tests/close_window/close.py', 'file:///builds/worker/workspace/build/tests/reftest/tests/editor/reftests/1443902-2.html', '/content-security-policy/frame-src/frame-src-self-unique-origin.html', '/css/css-properties-values-api/registered-property-computation.html', 'file:///builds/worker/workspace/build/tests/reftest/tests/gfx/tests/reftest/1474722.html', 'xpcshell.ini:toolkit/mozapps/extensions/test/xpcshell/test_webextension_langpack.js', '/css/css-backgrounds/border-image-017.xht', '/dom/interfaces.html?exclude=Node', '/html/browsers/the-window-object/apis-for-creating-and-navigating-browsing-contexts-by-name/open-features-non-integer-screeny.html', '/IndexedDB/idlharness.any.sharedworker.html', 'devtools/client/framework/test/browser_browser_toolbox_debugger.js', 'xpcshell-remote.ini:toolkit/components/extensions/test/xpcshell/test_ext_alarms_replaces.js', 'dom/payments/test/test_block_none10s.html', 'devtools/client/webide/test/test_device_runtime.html', '/payment-request/idlharness.https.window.html', 'browser/components/sessionstore/test/browser_async_remove_tab.js', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/svg/fragid-shadow-3.html', 'accessible/tests/mochitest/jsat/test_content_integration.html', '/remote-playback/idlharness.window.html', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/canvas/1304353-text-global-composite-op-1.html', '/css/css-backgrounds/border-image-019.xht', '/css/css-contain/contain-layout-ink-overflow-013.html', '/html/semantics/scripting-1/the-script-element/module/dynamic-import/string-compilation-integrity-classic.sub.html', 'dom/base/test/browser_use_counters.js', '/webrtc/RTCDTMFSender-ontonechange-long.https.html', 'toolkit/content/tests/widgets/xbl/test_videocontrols_keyhandler.html', 'toolkit/components/telemetry/tests/unit/test_TelemetryHealthPing.js', '/html/semantics/embedded-content/media-elements/video_008.htm', '/css/css-values/viewport-units-css2-001.html', '/content-security-policy/img-src/img-src-self-unique-origin.html', '/css/CSS2/backgrounds/background-position-126.xht', 'toolkit/components/normandy/test/browser/browser_AddonStudies.js', 'browser/base/content/test/static/browser_parsable_script.js', 'xpcshell.ini:toolkit/mozapps/extensions/test/xpcshell/test_LightweightThemeManager.js', '/css/css-masking/mask-image/mask-image-url-remote-mask.html', '/webrtc/RTCRtpTransceiver.https.html', '/content-security-policy/img-src/icon-blocked.sub.html', '/payment-request/PaymentMethodChangeEvent/methodDetails-attribute.https.html', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/forms/input/shadow-rules.html', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/box-properties/box-sizing-minmax-width.html', '/content-security-policy/securitypolicyviolation/targeting.html', '/shadow-dom/slots-fallback-in-document.html', 'browser/components/customizableui/test/browser_remote_tabs_button.js', '/css/vendor-imports/mozilla/mozilla-central-reftests/masking/mask-opacity-1e.html', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/bugs/1425243-1.html', 'browser/base/content/test/static/browser_all_files_referenced.js', '/infrastructure/webdriver/tests/test_load_file.py', '/payment-request/allowpaymentrequest/allowpaymentrequest-attribute-cross-origin-bc-containers.https.html', '/webdriver/tests/actions/bounds.py', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/text-overflow/selection.html', 'devtools/client/debugger/test/mochitest/browser_dbg_aaa_run_first_leaktest.js', '/2dcontext/imagebitmap/createImageBitmap-invalid-args.html', 'devtools/server/tests/unit/test_objectgrips-fn-apply.js', 'devtools/client/inspector/flexbox/test/browser_flexbox_sizing_info_for_different_writing_modes.js', 'browser/base/content/test/performance/browser_urlbar_search.js', '/url/failure.html', 'devtools/client/shared/test/browser_dbg_listaddons.js', 'testname', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/css-ui-invalid/default-style/input-focus.html', '/css/css-images/gradient/color-stops-parsing.html', '/encoding/idlharness.https.any.serviceworker.html', '/_mozilla/binast/large.https.html', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/text-stroke/webkit-text-stroke-property-002.html', 'devtools/client/inspector/grids/test/browser_grids_no_fragments.js', 'browser/base/content/test/siteIdentity/browser_tls_handshake_failure.js', 'http://localhost:33563/1535065648057/187/deferred-anchor.xhtml#d', '/mediacapture-record/idlharness.window.html', 'devtools/client/webconsole/test/mochitest/browser_jsterm_completion_invalid_dot_notation.js', '/css/css-backgrounds/border-image-020.xht', 'browser/extensions/onboarding/test/browser/browser_onboarding_accessibility.js', 'xpcshell-remote.ini:toolkit/components/extensions/test/xpcshell/test_ext_webRequest_startup.js', '/2dcontext/drawing-text-to-the-canvas/2d.text.draw.baseline.alphabetic.html', 'xpcshell.ini:toolkit/components/extensions/test/xpcshell/test_ext_manifest_themes.js', '/webdriver/tests/element_send_keys/interactability.py', '/cookies/http-state/name-tests.html', '/mediacapture-image/ImageCapture-creation.https.html', '/fullscreen/idlharness.window.html', '/html/rendering/non-replaced-elements/the-fieldset-element-0/legend-position-relative.html', '/media-capabilities/idlharness.any.worker.html', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/font-face/variation-format-hint-1a.html', 'xpcshell.ini:toolkit/mozapps/extensions/test/xpcshell/test_AddonRepository.js', '/html/webappapis/dynamic-markup-insertion/opening-the-input-stream/bailout-exception-vs-return-origin.sub.window.html', '/webdriver/tests/minimize_window/user_prompts.py', '/fetch/api/request/destination/fetch-destination.https.html', 'devtools/client/webide/test/test_addons.html', '/webaudio/the-audio-api/the-audiobuffersourcenode-interface/audiobuffersource-channels.html', 'layout/xul/test/browser_bug703210.js', 'browser/base/content/test/static/browser_parsable_css.js', 'xpcshell.ini:toolkit/mozapps/extensions/test/xpcshell/test_shutdown.js', '/web-animations/interfaces/KeyframeEffect/idlharness.window.html', 'browser/components/extensions/test/browser/browser_ext_slow_script.js', 'devtools/client/inspector/grids/test/browser_grids_grid-list-on-iframe-reloaded.js', '/cookies/http-state/general-tests.html', 'browser/components/tests/unit/test_browserGlue_migration_loop_cleanup.js', '/fullscreen/api/element-request-fullscreen-active-document.html', '/streams/piping/pipe-through.dedicatedworker.html', 'browser/components/payments/test/mochitest/test_basic_card_form.html', '/WebCryptoAPI/generateKey/failures_AES-CBC.https.any.worker.html', '/webdriver/tests/accept_alert/accept.py', '/fetch/api/response/response-static-redirect.html', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/layers/forced-bg-color-outside-visible-region.html', 'memory/replace/dmd/test/test_dmd.js', '/fetch/cors-rfc1918/idlharness.tentative.any.sharedworker.html', 'browser/components/payments/test/mochitest/test_address_option.html', 'file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/xul/treetwisty-svg-context-paint-1.xul', '/compat/webkit-pseudo-element.html', 'browser/components/sessionstore/test/browser_upgrade_backup.js', '/picture-in-picture/idlharness.window.html', '/html/rendering/non-replaced-elements/flow-content-0/dialog.html', '/fetch/api/request/destination/fetch-destination-no-load-event.https.html']
-	)
-	'''
-	#tests_with_no_data = ['border-image-017', 'border-image-019', 'pipe-through', 'accept', 'minimize_window/user_prompts', 'close_window', 'test_load_file', 'properties-value-inherit-001', 'Node', 'canvas/1304353-text-global-composite-op-1', 'vector/tall--32px-auto--nonpercent-width-nonpercent-height', 'input/shadow-rules', 'svg/fragid-shadow-3', '187/deferred-anchor', 'bugs/1425243-1', 'reftest/1474722', 'layers/forced-bg-color-outside-visible-region', 'drawing-text-to-the-canvas/2d', 'xul/treetwisty-svg-context-paint-1', 'default-style/input-focus', 'box-properties/box-sizing-minmax-width', 'text-stroke/webkit-text-stroke-property-002', 'the-fieldset-element-0/legend-position-relative', 'masking/mask-composite-1c', 'tests/perf_reftest', 'text-overflow/selection', 'actions/bounds', 'reftest/short', 'selectors4/class-id-attr-selector-invalidation-01', 'reftests/468263-2', 'tests/testname', 'as-image/img-and-image-1', 'compat/webkit-pseudo-element']
-	
-	# Ignore for analysis 8 & 9
-	#tests_with_no_data = ['block-string-assignment-to-Location-assign', 'back/back','location-prototype-setting-same-origin-domain', 'user_prompts', 'border-image-017', 'border-image-019', 'pipe-through', 'accept', 'minimize_window/user_prompts', 'close_window', 'test_load_file', 'properties-value-inherit-001', 'Node', 'svg/fragid-shadow-3', 'opening-the-input-stream/abort-refresh-immediate', 'vector/tall--32px-auto--nonpercent-width-nonpercent-height', 'drawing-text-to-the-canvas/2d', 'bugs/467444-1', 'opening-the-input-stream/ignore-opens-during-unload', 'masking/mask-opacity-1e', 'text-overflow/xulscroll', 'svg/foreignObject-img', 'the-fieldset-element-0/legend-position-relative', 'input/shadow-rules', 'shared-array-buffers/nested-worker-success-dedicatedworker', 'tests/perf_reftest', 'controlling-ua/reconnectToPresentation_notfound_error', 'svg/fragid-shadow-3', 'text/hyphenation-control-5', 'xul/treetwisty-svg-context-paint-1', 'canvas/1304353-text-global-composite-op-1', 'reftests/blending-svg-root', 'cors/cors-safelisted-request-header', 'xul/treetwisty-svg-context-paint-1', 'tests/testname', 'bugs/508816-1', 'bugs/1425243-1', 'reftests/468263-2']
-	#tests_with_no_data += ['svg/fragid-shadow-3', 'opening-the-input-stream/abort-refresh-immediate', 'vector/tall--32px-auto--nonpercent-width-nonpercent-height', 'drawing-text-to-the-canvas/2d', 'bugs/467444-1', 'opening-the-input-stream/ignore-opens-during-unload', 'masking/mask-opacity-1e', 'text-overflow/xulscroll', 'svg/foreignObject-img', 'the-fieldset-element-0/legend-position-relative', 'input/shadow-rules', 'shared-array-buffers/nested-worker-success-dedicatedworker', 'tests/perf_reftest', 'controlling-ua/reconnectToPresentation_notfound_error', 'svg/fragid-shadow-3', 'text/hyphenation-control-5', 'xul/treetwisty-svg-context-paint-1', 'canvas/1304353-text-global-composite-op-1', 'reftests/blending-svg-root', 'cors/cors-safelisted-request-header', 'xul/treetwisty-svg-context-paint-1', 'tests/testname', 'bugs/508816-1', 'bugs/1425243-1', 'reftests/468263-2']
-
-	# Ignore for analysis 7
-	#tests_with_no_data.extend(['browser/extensions/onboarding/test/browser/browser_onboarding_accessibility.js', 'toolkit/components/extensions/test/xpcshell/test_ext_legacy_extension_embedding.js', 'browser/base/content/test/trackingUI/browser_trackingUI_trackers_subview.js', 'browser/components/sessionstore/test/browser_async_remove_tab.js', 'browser/extensions/pdfjs/test/browser_pdfjs_savedialog.js', 'toolkit/components/extensions/test/xpcshell/test_ext_telemetry.js', 'browser/components/originattributes/test/browser/browser_firstPartyIsolation.js', 'browser/components/uitour/test/browser_UITour.js', 'browser/base/content/test/general/browser_contextmenu.js', 'devtools/client/webide/test/test_toolbox.html', 'toolkit/components/extensions/test/xpcshell/test_ext_webRequest_startup.js', 'browser/base/content/test/forms/browser_selectpopup.js', 'devtools/client/inspector/grids/test/browser_grids_no_fragments.js', 'dom/base/test/browser_force_process_selector.js', 'dom/canvas/test/webgl-conf/generated/test_2_conformance2__vertex_arrays__vertex-array-object.html', 'browser/components/tests/unit/test_browserGlue_migration_loop_cleanup.js', 'dom/payments/test/test_block_none10s.html', 'browser/components/payments/test/mochitest/test_basic_card_form.html', 'browser/extensions/screenshots/test/browser/browser_screenshots_ui_check.js', 'toolkit/components/extensions/test/xpcshell/test_ext_topSites.js', 'dom/base/test/test_script_loader_js_cache.html', 'toolkit/components/extensions/test/xpcshell/test_ext_alarms_replaces.js', 'browser/base/content/test/static/browser_misused_characters_in_strings.js', 'toolkit/components/extensions/test/xpcshell/test_ext_contentscript_create_iframe.js', 'devtools/client/webide/test/test_addons.html', 'browser/components/translation/test/browser_translation_infobar.js', 'dom/base/test/browser_use_counters.js', 'browser/base/content/test/siteIdentity/browser_tls_handshake_failure.js', 'devtools/client/debugger/test/mochitest/browser_dbg_aaa_run_first_leaktest.js', 'browser/components/extensions/test/browser/test-oop-extensions/browser_ext_popup_select.js', 'devtools/client/shared/test/browser_dbg_listaddons.js', 'devtools/client/webconsole/test/mochitest/browser_jsterm_completion_invalid_dot_notation.js', 'browser/base/content/test/urlbar/browser_autocomplete_enter_race.js', 'devtools/client/debugger/test/mochitest/browser_dbg_split-console-keypress.js', 'devtools/client/styleeditor/test/browser_styleeditor_media_sidebar_links.js', 'devtools/client/inspector/grids/test/browser_grids_grid-list-on-iframe-reloaded.js', 'browser/components/urlbar/tests/unit/test_UrlbarInput_unit.js', 'testname', 'browser/base/content/test/static/browser_parsable_css.js', 'browser/base/content/test/static/browser_all_files_referenced.js', 'dom/canvas/test/webgl-conf/generated/test_2_conformance2__textures__misc__npot-video-sizing.html', 'memory/replace/dmd/test/test_dmd.js', 'browser/base/content/test/general/browser_storagePressure_notification.js', 'dom/canvas/test/webgl-conf/generated/test_2_conformance2__rendering__framebuffer-texture-changing-base-level.html', 'devtools/client/webide/test/test_device_runtime.html'])
-
+	# Remove tests with no data 
 	tmp_tests = []
 	for count, tp in enumerate(changesets):
 		if len(tp) == 4:
@@ -175,6 +210,8 @@ def run(args=None, config=None):
 		test_fixed = test_fixed.split('ini:')[-1]
 		if 'mochitest' not in suite and 'xpcshell' not in suite:
 			test_fixed = format_testname(test_fixed)
+		else:
+			test_fixed = format_testname(test_fixed, wpt=False)
 		tmp_tests.append(test_fixed)
 
 	tests_with_no_data = []
@@ -182,12 +219,28 @@ def run(args=None, config=None):
 		tests_with_no_data = get_tests_with_no_data(jsondatalist, tmp_tests)
 	else:
 		for test_matcher in tmp_tests:
-			coverage_query['where']['and'][2]['regexp']['test.name'] = ".*" + test_matcher.replace('\\', '/') + '.*'
+			coverage_query['where']['and'][1]['regexp']['test.name'] = ".*" + test_matcher.replace('\\', '/') + ".*"
+			log.info("Querying active data for data for the test: %s" % test_matcher.replace('\\', '/'))
 			coverage_data = query_activedata(coverage_query)
 			if len(coverage_data) == 0:
+				log.info("Found no data.\n")
 				tests_with_no_data.append(test_matcher)
+			else:
+				log.info("Found data. \n")
+
 	log.info("Number of tests with no data: %s" % str(len(tests_with_no_data)))
 	log.info("Number of tests in total: %s" % str(len(tmp_tests)))
+
+	if outputdir:
+		save_json(
+			{
+				'testswithnodata': fix_names(changesets, tests_with_no_data),
+				'orig_testswithnodata': tests_with_no_data,
+				'alltests-matchers': tmp_tests,
+			},
+			outputdir,
+			timestr + '_test_matching_info.json'
+		)
 
 	# For each patch
 	changesets_removed = {}
@@ -205,6 +258,10 @@ def run(args=None, config=None):
 
 			if 'test' in status:
 				continue
+
+		if skip_py and test_fixed.endswith('.py'):
+			# Skip all python tests.
+			continue
 
 		orig_test_fixed = test_fixed
 		test_fixed = test_fixed.split('ini:')[-1]
@@ -257,6 +314,14 @@ def run(args=None, config=None):
 				log.info("No files modified after filtering test-only or support files.")
 				if include_guaranteed:
 					num_guaranteed += 1
+
+					cset_count = 1
+					if changeset not in changesets_counts:
+						changesets_counts[changeset] = cset_count
+					else:
+						changesets_counts[changeset] += 1
+						cset_count = changesets_counts[changeset]
+
 					changeset_name = changeset + "_" + str(cset_count)
 					tests_for_changeset[changeset_name] = {
 						'patch-link': HG_URL + currhg_analysisbranch + "/rev/" + changeset,
@@ -268,6 +333,7 @@ def run(args=None, config=None):
 						'files_modified': orig_files_modified,
 						'suite': suite,
 						'runname': runname,
+						'orig-test-related': orig_test_fixed,
 						'test-related': test_fixed,
 						'testsnotrun': [],
 					}
@@ -291,13 +357,14 @@ def run(args=None, config=None):
 		try:
 			failed_tests = query_activedata(failed_tests_query_json)
 		except Exception as e:
-			log.info("Error running query: " + str(test_coverage_query_json))
+			log.info("Error running query: " + str(failed_tests_query_json))
 
 		if use_active_data:
 			try:
 				all_tests = get_coverage_tests(tc_tasks_rev_n_branch, get_files=files_modified)
 			except Exception as e:
-				log.info("Error running query: " + str(test_coverage_query_json))
+				log.info("Error getting coverage from active data...")
+				log.info(str(e))
 		else:
 			all_tests = get_coverage_tests_from_jsondatalist(jsondatalist, get_files=files_modified)
 
@@ -345,6 +412,8 @@ def run(args=None, config=None):
 			'files_modified': files_modified,
 			'suite': suite,
 			'runname': runname,
+			'orig-test-related': orig_test_fixed,
+			'test-related': test_fixed,
 			'testsnotrun': all_tests_not_run,
 		}
 
@@ -375,14 +444,6 @@ def run(args=None, config=None):
 		timestr = str(int(time.time()))
 		save_json(tests_for_changeset, outputdir, timestr + '_per_changeset_breakdown.json')
 		save_json(changesets_removed, outputdir, timestr + '_changesets_with_only_test_or_support_files.json')
-		save_json(
-			{
-				'testswithnodata': fix_names(changesets, tests_with_no_data),
-				'alltests-matchers': tmp_tests,
-			},
-			outputdir,
-			timestr + '_test_matching_info.json'
-		)
 
 	# Plot a second bar on top
 	f = plt.figure()

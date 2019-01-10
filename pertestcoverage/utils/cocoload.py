@@ -107,17 +107,21 @@ def chrome_mapping_rewrite(srcfiles, chrome_map_path, chrome_map_name=None):
 	return new_srcfiles
 
 
-def format_testname(tname):
+def format_testname(tname, wpt=True):
 	'''
 		Format test name to 'folder/filename'
 		to easily find compare tests when their
 		names differ.
 		i.e. dom/media/file.cpp --becomes--> media/file
 	'''
+	tname = tname.lstrip('/')
 	tname = tname.split('=')[-1]
 	tname = tname.split('?')[0]
+	tname = tname.replace('\\', '/')
 	tname = '/'.join(tname.split('/')[-2:])
-	tname = tname.split('#')[0].split('.')[0]
+	tname = tname.split('#')[0]
+	if wpt:
+		tname = tname.split('.')[0]
 	return tname
 
 
@@ -274,8 +278,14 @@ def get_all_jsons(args=None):
 def get_all_pertest_data(pertestdir='', chrome_map_path=''):
 	jsonpaths = get_jsonpaths_from_dir(pertestdir)
 	json_data = []
+	all_files_seen = set()
 
 	for root, file in jsonpaths:
+		prev_len = len(all_files_seen)
+		all_files_seen |= set([file])
+		if len(all_files_seen) == prev_len:
+			continue
+		
 		try:
 			fmtd_test_dict = get_per_test_file(
 				root, file, return_test_name=True
@@ -503,12 +513,12 @@ def get_http_json(url):
 	data = None
 
 	@timeout(120)
-	def get_data():
+	def get_data(url=None):
 		with urllib.request.urlopen(url) as urllib_url:
 			data = json.loads(urllib_url.read().decode())
 		return data
 
-	data = rununtiltimeout(get_data)
+	data = rununtiltimeout(get_data, url=url)
 	return data
 
 
@@ -517,7 +527,7 @@ def query_activedata(query_json, debug=False, active_data_url=None):
 		active_data_url = "http://activedata.allizom.org/query"
 
 	@timeout(120)
-	def get_data():
+	def get_data(active_data_url=None, query_json=None):
 		req = urllib.request.Request(active_data_url)
 		req.add_header('Content-Type', 'application/json')
 		jsondata = json.dumps(query_json)
@@ -530,7 +540,9 @@ def query_activedata(query_json, debug=False, active_data_url=None):
 		log.debug("Status:" + str(response.getcode()))
 		return response
 
-	response = rununtiltimeout(get_data)
+	response = rununtiltimeout(
+		get_data, active_data_url=active_data_url, query_json=query_json
+	)
 
 	data = json.loads(response.read().decode('utf8').replace("'", '"'))['data']
 	return data

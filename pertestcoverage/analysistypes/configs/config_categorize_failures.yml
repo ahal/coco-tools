@@ -1,18 +1,32 @@
 visualize_all: True
 
-visualize_by_suite: True
-sort_into_suites: ['mochitest', 'xpcshell', 'web', 'ref', 'crash']
+visualize_by_suite: False
+sort_into_suites: []
 suite_splitter: ['/', 1]
 
+visualize_by_test: False
+test_splitter: ['/', 0]
+
 file_matchers: [
-  'allsuitesandplatforms_per_changeset_breakdown'
+  '1544243196_per_changeset_breakdown', # Full dataset, yes/maybe conditions
+  #'1544059433_per_changeset_breakdown' # Full dataset, no filtering
 ]
 
-dirs: ['/home/sparky/Documents/tmp/categorize1']
+dirs: ['/home/sparky/Documents/tmp']
 categories: [
   'failed-changes',
   'js-changes',
   'c-changes',
   'unlreated-changes',
-  'test-changes'
+  'test-changes',
+  'dir-match'
 ]
+
+# Total settings
+use_failed: False
+exclusive: False
+show_files_modified: False
+
+# Dir-match settings
+levels_to_match: 1
+list_failures_not_matched: True
