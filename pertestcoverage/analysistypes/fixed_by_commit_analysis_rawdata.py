@@ -118,67 +118,15 @@ def run(args=None, config=None):
 		"select":[{"name":"test","value":"result.test"}]
 	}
 
-	fixed_by_commit_query_json = {
-		"from": "treeherder",
-		"groupby": [
-			"failure.notes.text",
-			"job.type.name",
-			"job_log.failure_line.repository",
-			"job_log.failure_line.test"
-		],
-		"limit": 2000,
-		"where": {
-			"and": [
-				{"in":{"job_log.failure_line.repository":["mozilla-inbound","autoland"]}},
-				{"or":[
-					{"regex":{"job.type.name":".*%s.*" % suite}}
-					for suite in suites_to_analyze
-				]},
-				{"or": [
-					{"regex":{"job.type.name":".*%s.*" % platform}}
-					for platform in platforms_to_analyze
-				]},
-				{"gte":{"action.start_time":{"date":from_date}}}, # From-date example: "2018-08-28"
-				{"prefix":{"job.type.name":"test-"}},
-				{"regexp":{"failure.classification":".*commit"}},
-				{"exists":"job_log.failure_line.test"}
-			]
-		}
-	}
-
-	# Gather changesets
-	changesets = []
-	if use_active_data:
-		log.info("Querying active data for all fixed_by_commit data...")
-		all_fcommit_data = query_activedata(fixed_by_commit_query_json)
-		log.debug("All fixed_by_commit data: \n %s" % str(all_fcommit_data))
-		for entry in all_fcommit_data:
-			bad_entry = False
-			for el in entry:
-				if not el:
-					bad_entry = True
-			if bad_entry:
-				continue
-			changesets.append(tuple(entry[0:4]))
-		with open(os.path.join(outputdir, timestr + '_fixed_by_commit_entries.csv'), 'w') as f:
-			def format_tp(tp):
-				new_tp = []
-				for el in tp:
-					if not el:
-						print("found error: %s" % str(el))
-					new_tp.append(str(el))
-				return new_tp
-			f.write('\n'.join([','.join(format_tp(tp)) for tp in changesets]))
-	else:
-		for csets_csv_path in changesets_list:
-			with open(csets_csv_path, 'r') as f:
-				reader = csv.reader(f)
-				count = 0
-				for row in reader:
-					if count == 0:
-						count += 1
-						continue
-					changesets.append(tuple(row))
+	changesets = get_fixed_by_commit_entries(
+		localdata=not use_active_data,
+		activedata=use_active_data,
+		suites_to_analyze=suites_to_analyze,
+		platforms_to_analyze=platforms_to_analyze,
+		from_date=from_date,
+		local_datasets_list=changesets_list,
+		save_fbc_entries=outputdir
+	)
 
 	jsondatalist = []
 	if not use_active_data:
