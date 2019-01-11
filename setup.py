@@ -32,6 +32,7 @@ setup(
     packages=[
         'pertestcoverage',
         'pertestcoverage.analysistypes',
+        'pertestcoverage.analysistypes.custom_scheduling',
         'pertestcoverage.utils',
         'pertestcoverage.utils.cocoanalyze'
     ],

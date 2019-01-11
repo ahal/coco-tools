@@ -25,6 +25,7 @@ from ..utils.cocoload import (
 	get_coverage_tests_from_jsondatalist,
 	get_all_pertest_data,
 	get_all_stdptc_data,
+	get_fixed_by_commit_entries,
 	format_testname,
 	pattern_find,
 	HG_URL,
@@ -69,7 +70,6 @@ def run(args=None, config=None):
 	hg_analysisbranch = config['hg_analysisbranch']
 	changesets_list = config['changesets']
 	outputdir = config['outputdir']
-	tc_tasks_rev_n_branch = config['tc_tasks_rev_n_branch']
 	pertest_rawdata_folders = config['pertest_rawdata_folders']
 	analyze_all = config['analyze_all'] if 'analyze_all' in config else False
 	mozcentral_path = config['mozcentral_path'] if 'mozcentral_path' in config else None
