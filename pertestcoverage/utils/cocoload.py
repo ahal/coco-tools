@@ -4,6 +4,7 @@
 
 from __future__ import print_function, absolute_import
 
+import csv
 import os
 import gzip
 import json
@@ -123,7 +124,7 @@ def format_testname(tname, wpt=True):
 	tname = tname.split('#')[0]
 	if wpt:
 		tname = tname.split('.')[0]
-	return tname
+	return tname + '.'
 
 
 def get_and_check_config(args=None, config=None):

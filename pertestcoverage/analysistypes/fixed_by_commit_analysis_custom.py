@@ -22,10 +22,6 @@ from ..utils.cocoload import (
 	get_http_json,
 	query_activedata,
 	get_changesets,
-	get_coverage_tests,
-	get_coverage_tests_from_jsondatalist,
-	get_all_pertest_data,
-	get_all_stdptc_data,
 	get_fixed_by_commit_entries,
 	hg_branch,
 	format_testname,
@@ -127,8 +123,12 @@ def run(args=None, config=None):
 	)
 
 	# For each patch
+	histogram1_datalist = []
+	tests_for_changeset = {}
+	changesets_counts = {}
 	count_changesets_processed = 0
 	all_changesets = []
+
 	for count, tp in enumerate(changesets):
 		if count_changesets_processed >= numpatches:
 			continue
@@ -161,6 +161,8 @@ def run(args=None, config=None):
 		failed_tests_query_json['where']['and'][0] = {"eq": {"repo.changeset.id12": changeset}}
 		failed_tests_query_json['where']['and'][1] = {"eq": {"repo.branch.name": repo}}
 
+		log.info("Checking for test failures...")
+
 		all_tests = []
 		failed_tests = []
 		try:
@@ -179,7 +181,12 @@ def run(args=None, config=None):
 		log.info("Test was truly fixed. Failed tests: " + str(all_failed_tests))
 
 		# Perform scheduling
-		returned_data = custom_class_obj.analyze_fbc_entry(tp)
+		all_tests_not_run = []
+		returned_data = custom_class_obj.analyze_fbc_entry(
+			(changeset, suite, repo, orig_test_fixed),
+			test_fixed
+		)
+
 		if 'skip' in returned_data and returned_data['skip']:
 			continue
 		if not returned_data['success']:

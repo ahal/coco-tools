@@ -4,7 +4,7 @@ analyze_all: False
 runname: 'Analysis 12, all data, yes/maybe conditions'
 include_guaranteed: True
 
-use_active_data: True
+use_active_data: False
 suites_to_analyze: ['mochitest', 'xpcshell', 'web']
 platforms_to_analyze: ['linux', 'win', 'mac', 'osx']
 from_date: "2018-11-28"
@@ -19,10 +19,10 @@ changesets: [
     '/home/sparky/Downloads/all-platforms-fixed_by_commit_764.csv'
 ]
 
-pertest_rawdata_folders: []
+pertest_rawdata_folders:
     # Example entry
-    #- location: "/home/sparky/Documents/tmp/Y57bdb1ATgiaj2x6kT1IKg/"
-    #  type: "pertestreport"
-    #  chrome-map: "/home/sparky/Documents/tmp/Y57bdb1ATgiaj2x6kT1IKg/chrome-map.json"
+    - location: "/home/sparky/Documents/tmp/Y57bdb1ATgiaj2x6kT1IKg/"
+      type: "pertestreport"
+      chrome-map: "/home/sparky/Documents/tmp/Y57bdb1ATgiaj2x6kT1IKg/chrome-map.json"
 
 mozcentral_path: "/home/sparky/mozilla-source/mozilla-central/"

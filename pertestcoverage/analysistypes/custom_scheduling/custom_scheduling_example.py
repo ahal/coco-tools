@@ -9,7 +9,7 @@ class ExampleScheduler:
 		log.info("I see a config!")
 		log.info(config)
 
-	def analyze_fbc_entry(self, entry):
+	def analyze_fbc_entry(self, entry, fmt_testname):
 		'''
 			entry is a tuple of the following format:
 			(changeset, suite, repo, test_fixed)
@@ -20,6 +20,8 @@ class ExampleScheduler:
 			'success': False,
 			'skip': False
 		}
+
+		log.info("Found the formatted test: {}".format(fmt_testname))
 
 		val = random.random()
 		if val < 0.3:
